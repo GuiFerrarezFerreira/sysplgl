@@ -1,0 +1,1063 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arbitrivm - Plataforma de Arbitragem Imobiliária</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary-color: #2563eb;
+            --secondary-color: #3b82f6;
+            --success-color: #10b981;
+            --warning-color: #f59e0b;
+            --danger-color: #ef4444;
+            --dark-color: #1f2937;
+            --light-color: #f3f4f6;
+            --border-color: #e5e7eb;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background-color: #f9fafb;
+            color: var(--dark-color);
+            line-height: 1.6;
+        }
+
+        /* Layout Components */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        /* Header */
+        .header {
+            background-color: white;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 0;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+
+        .nav-menu {
+            display: flex;
+            list-style: none;
+            gap: 2rem;
+        }
+
+        .nav-menu a {
+            text-decoration: none;
+            color: var(--dark-color);
+            font-weight: 500;
+            transition: color 0.3s;
+        }
+
+        .nav-menu a:hover {
+            color: var(--primary-color);
+        }
+
+        .user-menu {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        /* Main Content */
+        .main-content {
+            min-height: calc(100vh - 80px);
+            padding: 2rem 0;
+        }
+
+        /* Dashboard */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .stat-card h3 {
+            color: #6b7280;
+            font-size: 0.875rem;
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+
+        /* Forms */
+        .form-container {
+            background: white;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: var(--dark-color);
+        }
+
+        .form-input,
+        .form-select,
+        .form-textarea {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-size: 1rem;
+            transition: border-color 0.3s;
+        }
+
+        .form-input:focus,
+        .form-select:focus,
+        .form-textarea:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+
+        .form-textarea {
+            resize: vertical;
+            min-height: 120px;
+        }
+
+        /* Buttons */
+        .btn {
+            display: inline-block;
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 4px;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: var(--secondary-color);
+        }
+
+        .btn-secondary {
+            background-color: var(--light-color);
+            color: var(--dark-color);
+        }
+
+        .btn-secondary:hover {
+            background-color: var(--border-color);
+        }
+
+        .btn-success {
+            background-color: var(--success-color);
+            color: white;
+        }
+
+        .btn-danger {
+            background-color: var(--danger-color);
+            color: white;
+        }
+
+        /* Tables */
+        .table-container {
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .table th {
+            background-color: var(--light-color);
+            padding: 1rem;
+            text-align: left;
+            font-weight: 500;
+            color: var(--dark-color);
+        }
+
+        .table td {
+            padding: 1rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .table tr:hover {
+            background-color: #f9fafb;
+        }
+
+        /* Status Badges */
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
+        .badge-pending {
+            background-color: #fef3c7;
+            color: #92400e;
+        }
+
+        .badge-active {
+            background-color: #d1fae5;
+            color: #065f46;
+        }
+
+        .badge-completed {
+            background-color: #dbeafe;
+            color: #1e40af;
+        }
+
+        /* Modals */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 2rem;
+            border-radius: 8px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #6b7280;
+        }
+
+        /* File Upload */
+        .file-upload-area {
+            border: 2px dashed var(--border-color);
+            border-radius: 8px;
+            padding: 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .file-upload-area:hover {
+            border-color: var(--primary-color);
+            background-color: #f0f9ff;
+        }
+
+        .file-list {
+            margin-top: 1rem;
+        }
+
+        .file-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem;
+            background-color: var(--light-color);
+            border-radius: 4px;
+            margin-bottom: 0.5rem;
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            border-bottom: 2px solid var(--border-color);
+            margin-bottom: 2rem;
+        }
+
+        .tab {
+            padding: 1rem 2rem;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 500;
+            color: #6b7280;
+            position: relative;
+            transition: color 0.3s;
+        }
+
+        .tab:hover {
+            color: var(--primary-color);
+        }
+
+        .tab.active {
+            color: var(--primary-color);
+        }
+
+        .tab.active::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background-color: var(--primary-color);
+        }
+
+        /* Chat/Messages */
+        .chat-container {
+            background: white;
+            border-radius: 8px;
+            height: 500px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .chat-header {
+            padding: 1rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+        }
+
+        .message {
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: flex-start;
+            gap: 0.5rem;
+        }
+
+        .message-content {
+            background-color: var(--light-color);
+            padding: 0.75rem;
+            border-radius: 8px;
+            max-width: 70%;
+        }
+
+        .message.sent .message-content {
+            background-color: var(--primary-color);
+            color: white;
+            margin-left: auto;
+        }
+
+        .chat-input {
+            display: flex;
+            padding: 1rem;
+            border-top: 1px solid var(--border-color);
+            gap: 0.5rem;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .nav-menu {
+                display: none;
+            }
+
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .form-container {
+                padding: 1rem;
+            }
+        }
+
+        /* Loading */
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid var(--light-color);
+            border-radius: 50%;
+            border-top-color: var(--primary-color);
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Sections */
+        .section {
+            display: none;
+        }
+
+        .section.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">Arbitrivm</div>
+                <nav>
+                    <ul class="nav-menu">
+                        <li><a href="#" onclick="showSection('dashboard')">Dashboard</a></li>
+                        <li><a href="#" onclick="showSection('disputes')">Disputas</a></li>
+                        <li><a href="#" onclick="showSection('arbitrators')">Árbitros</a></li>
+                        <li><a href="#" onclick="showSection('documents')">Documentos</a></li>
+                        <li><a href="#" onclick="showSection('reports')">Relatórios</a></li>
+                    </ul>
+                </nav>
+                <div class="user-menu">
+                    <button class="btn btn-primary" onclick="showModal('newDispute')">Nova Disputa</button>
+                    <div class="user-profile">
+                        <span id="userName">Usuário</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="container">
+            <!-- Dashboard Section -->
+            <section id="dashboard" class="section active">
+                <h1 style="margin-bottom: 2rem;">Dashboard - Imobiliária XYZ</h1>
+                
+                <div class="dashboard-grid">
+                    <div class="stat-card">
+                        <h3>Disputas Ativas</h3>
+                        <div class="stat-value">12</div>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Disputas Resolvidas</h3>
+                        <div class="stat-value">48</div>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Taxa de Resolução</h3>
+                        <div class="stat-value">87%</div>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Tempo Médio</h3>
+                        <div class="stat-value">15 dias</div>
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <h2 style="padding: 1rem;">Disputas Recentes</h2>
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Tipo</th>
+                                <th>Partes</th>
+                                <th>Status</th>
+                                <th>Data</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>#001234</td>
+                                <td>Danos ao Imóvel</td>
+                                <td>João Silva vs. Maria Santos</td>
+                                <td><span class="badge badge-active">Em Andamento</span></td>
+                                <td>15/03/2024</td>
+                                <td><button class="btn btn-secondary" onclick="viewDispute('001234')">Ver Detalhes</button></td>
+                            </tr>
+                            <tr>
+                                <td>#001233</td>
+                                <td>Infração Condominial</td>
+                                <td>Condomínio ABC vs. Pedro Oliveira</td>
+                                <td><span class="badge badge-pending">Aguardando Árbitro</span></td>
+                                <td>14/03/2024</td>
+                                <td><button class="btn btn-secondary" onclick="viewDispute('001233')">Ver Detalhes</button></td>
+                            </tr>
+                            <tr>
+                                <td>#001232</td>
+                                <td>Danos ao Imóvel</td>
+                                <td>Imobiliária XYZ vs. Ana Costa</td>
+                                <td><span class="badge badge-completed">Concluída</span></td>
+                                <td>10/03/2024</td>
+                                <td><button class="btn btn-secondary" onclick="viewDispute('001232')">Ver Detalhes</button></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Disputes Section -->
+            <section id="disputes" class="section">
+                <h1 style="margin-bottom: 2rem;">Gestão de Disputas</h1>
+                
+                <div class="tabs">
+                    <button class="tab active" onclick="switchTab(this, 'active-disputes')">Ativas</button>
+                    <button class="tab" onclick="switchTab(this, 'pending-disputes')">Pendentes</button>
+                    <button class="tab" onclick="switchTab(this, 'completed-disputes')">Concluídas</button>
+                </div>
+
+                <div id="active-disputes" class="tab-content">
+                    <div class="table-container">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Tipo</th>
+                                    <th>Imóvel</th>
+                                    <th>Partes</th>
+                                    <th>Árbitro</th>
+                                    <th>Prazo</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>#001234</td>
+                                    <td>Danos ao Imóvel</td>
+                                    <td>Rua ABC, 123 - Apto 45</td>
+                                    <td>João Silva vs. Maria Santos</td>
+                                    <td>Dr. Carlos Mendes</td>
+                                    <td>5 dias</td>
+                                    <td>
+                                        <button class="btn btn-primary" onclick="openChat('001234')">Chat</button>
+                                        <button class="btn btn-secondary" onclick="viewDocuments('001234')">Documentos</button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Arbitrators Section -->
+            <section id="arbitrators" class="section">
+                <h1 style="margin-bottom: 2rem;">Árbitros Especializados</h1>
+                
+                <div style="margin-bottom: 2rem;">
+                    <div style="display: flex; gap: 1rem; margin-bottom: 1rem;">
+                        <input type="text" class="form-input" placeholder="Buscar árbitro..." style="flex: 1;">
+                        <select class="form-select" style="width: 200px;">
+                            <option>Todas as Especializações</option>
+                            <option>Locações</option>
+                            <option>Disputas Condominiais</option>
+                            <option>Imobiliário Geral</option>
+                        </select>
+                        <button class="btn btn-primary">Buscar</button>
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Nome</th>
+                                <th>Especialização</th>
+                                <th>Casos Resolvidos</th>
+                                <th>Taxa de Sucesso</th>
+                                <th>Avaliação</th>
+                                <th>Status</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Dr. Carlos Mendes</td>
+                                <td>Locações, Danos ao Imóvel</td>
+                                <td>127</td>
+                                <td>92%</td>
+                                <td>⭐⭐⭐⭐⭐</td>
+                                <td><span class="badge badge-active">Disponível</span></td>
+                                <td><button class="btn btn-secondary">Ver Perfil</button></td>
+                            </tr>
+                            <tr>
+                                <td>Dra. Ana Paula Silva</td>
+                                <td>Disputas Condominiais</td>
+                                <td>89</td>
+                                <td>88%</td>
+                                <td>⭐⭐⭐⭐</td>
+                                <td><span class="badge badge-active">Disponível</span></td>
+                                <td><button class="btn btn-secondary">Ver Perfil</button></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Documents Section -->
+            <section id="documents" class="section">
+                <h1 style="margin-bottom: 2rem;">Central de Documentos</h1>
+                
+                <div class="form-container">
+                    <h2>Upload de Documentos</h2>
+                    <div class="file-upload-area" onclick="document.getElementById('fileInput').click()">
+                        <p>Clique ou arraste arquivos aqui</p>
+                        <p style="font-size: 0.875rem; color: #6b7280;">Contratos, laudos, fotos, vídeos (máx. 50MB)</p>
+                        <input type="file" id="fileInput" multiple style="display: none;" onchange="handleFileSelect(event)">
+                    </div>
+                    
+                    <div class="file-list" id="fileList"></div>
+                </div>
+
+                <div class="table-container" style="margin-top: 2rem;">
+                    <h2 style="padding: 1rem;">Documentos Recentes</h2>
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Nome</th>
+                                <th>Tipo</th>
+                                <th>Disputa</th>
+                                <th>Data Upload</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Contrato_Locacao_Apto45.pdf</td>
+                                <td>Contrato</td>
+                                <td>#001234</td>
+                                <td>15/03/2024</td>
+                                <td>
+                                    <button class="btn btn-secondary">Visualizar</button>
+                                    <button class="btn btn-secondary">Download</button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Reports Section -->
+            <section id="reports" class="section">
+                <h1 style="margin-bottom: 2rem;">Relatórios e Análises</h1>
+                
+                <div class="dashboard-grid" style="margin-bottom: 2rem;">
+                    <div class="stat-card">
+                        <h3>Volume Total de Casos</h3>
+                        <div class="stat-value">156</div>
+                        <p style="color: var(--success-color); font-size: 0.875rem;">↑ 12% vs. mês anterior</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Tempo Médio de Resolução</h3>
+                        <div class="stat-value">15 dias</div>
+                        <p style="color: var(--success-color); font-size: 0.875rem;">↓ 3 dias vs. média</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Economia Estimada</h3>
+                        <div class="stat-value">R$ 45.800</div>
+                        <p style="color: #6b7280; font-size: 0.875rem;">vs. processo judicial</p>
+                    </div>
+                </div>
+
+                <div class="form-container">
+                    <h2>Gerar Relatório Personalizado</h2>
+                    <form>
+                        <div class="form-group">
+                            <label class="form-label">Período</label>
+                            <div style="display: flex; gap: 1rem;">
+                                <input type="date" class="form-input" style="flex: 1;">
+                                <input type="date" class="form-input" style="flex: 1;">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Tipo de Relatório</label>
+                            <select class="form-select">
+                                <option>Relatório Completo</option>
+                                <option>Análise por Tipo de Disputa</option>
+                                <option>Performance de Árbitros</option>
+                                <option>Análise Financeira</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Gerar Relatório</button>
+                    </form>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- New Dispute Modal -->
+    <div id="newDisputeModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Nova Disputa</h2>
+                <button class="modal-close" onclick="closeModal('newDispute')">&times;</button>
+            </div>
+            
+            <form id="newDisputeForm">
+                <div class="form-group">
+                    <label class="form-label">Tipo de Disputa</label>
+                    <select class="form-select" id="disputeType" onchange="updateDisputeForm()">
+                        <option value="">Selecione...</option>
+                        <option value="damage">Danos ao Imóvel</option>
+                        <option value="infraction">Infração Condominial</option>
+                    </select>
+                </div>
+
+                <div id="disputeSpecificFields"></div>
+
+                <div class="form-group">
+                    <label class="form-label">Descrição do Conflito</label>
+                    <textarea class="form-textarea" placeholder="Descreva detalhadamente o conflito..."></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Documentos Relacionados</label>
+                    <div class="file-upload-area" onclick="document.getElementById('disputeFiles').click()">
+                        <p>Adicionar documentos</p>
+                        <input type="file" id="disputeFiles" multiple style="display: none;">
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 1rem; justify-content: flex-end;">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('newDispute')">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Iniciar Disputa</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Chat Modal -->
+    <div id="chatModal" class="modal">
+        <div class="modal-content" style="max-width: 800px;">
+            <div class="modal-header">
+                <h2>Chat - Disputa #001234</h2>
+                <button class="modal-close" onclick="closeModal('chat')">&times;</button>
+            </div>
+            
+            <div class="chat-container">
+                <div class="chat-header">
+                    <p><strong>Participantes:</strong> João Silva, Maria Santos, Dr. Carlos Mendes (Árbitro)</p>
+                </div>
+                <div class="chat-messages" id="chatMessages">
+                    <div class="message">
+                        <div class="message-content">
+                            <strong>Dr. Carlos Mendes:</strong><br>
+                            Boa tarde. Iniciei a análise dos documentos apresentados. Preciso que ambas as partes esclareçam alguns pontos.
+                        </div>
+                    </div>
+                    <div class="message sent">
+                        <div class="message-content">
+                            <strong>João Silva:</strong><br>
+                            Boa tarde, Dr. Carlos. Estou à disposição para esclarecer qualquer dúvida.
+                        </div>
+                    </div>
+                </div>
+                <div class="chat-input">
+                    <input type="text" class="form-input" placeholder="Digite sua mensagem..." style="flex: 1;">
+                    <button class="btn btn-primary">Enviar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // User type simulation
+        let userType = 'b2b'; // 'b2b' or 'arbitrator' or 'party'
+        let currentCompany = {
+            name: 'Imobiliária XYZ',
+            cnpj: '12.345.678/0001-90',
+            type: 'real_estate'
+        };
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            updateUserInterface();
+            loadDashboardData();
+        });
+
+        // Section Navigation
+        function showSection(sectionId) {
+            // Hide all sections
+            document.querySelectorAll('.section').forEach(section => {
+                section.classList.remove('active');
+            });
+            
+            // Show selected section
+            document.getElementById(sectionId).classList.add('active');
+            
+            // Update nav active state
+            document.querySelectorAll('.nav-menu a').forEach(link => {
+                link.classList.remove('active');
+                if (link.getAttribute('onclick').includes(sectionId)) {
+                    link.classList.add('active');
+                }
+            });
+        }
+
+        // Modal Functions
+        function showModal(modalType) {
+            document.getElementById(modalType + 'Modal').style.display = 'flex';
+        }
+
+        function closeModal(modalType) {
+            document.getElementById(modalType + 'Modal').style.display = 'none';
+        }
+
+        // Update UI based on user type
+        function updateUserInterface() {
+            if (userType === 'b2b') {
+                document.getElementById('userName').textContent = currentCompany.name;
+            }
+        }
+
+        // Load dashboard data
+        function loadDashboardData() {
+            // Simulate API call to load data
+            console.log('Loading dashboard data...');
+        }
+
+        // Dynamic form update based on dispute type
+        function updateDisputeForm() {
+            const disputeType = document.getElementById('disputeType').value;
+            const specificFields = document.getElementById('disputeSpecificFields');
+            
+            specificFields.innerHTML = '';
+            
+            if (disputeType === 'damage') {
+                specificFields.innerHTML = `
+                    <div class="form-group">
+                        <label class="form-label">Endereço do Imóvel</label>
+                        <input type="text" class="form-input" placeholder="Rua, número, complemento...">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Número do Contrato de Locação</label>
+                        <input type="text" class="form-input">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Valor Estimado dos Danos</label>
+                        <input type="number" class="form-input" placeholder="R$ 0,00">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Data da Vistoria</label>
+                        <input type="date" class="form-input">
+                    </div>
+                `;
+            } else if (disputeType === 'infraction') {
+                specificFields.innerHTML = `
+                    <div class="form-group">
+                        <label class="form-label">Condomínio</label>
+                        <input type="text" class="form-input" placeholder="Nome do condomínio">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Unidade/Apartamento</label>
+                        <input type="text" class="form-input">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Tipo de Infração</label>
+                        <select class="form-select">
+                            <option>Barulho excessivo</option>
+                            <option>Uso indevido de área comum</option>
+                            <option>Alteração de fachada</option>
+                            <option>Animais em desacordo</option>
+                            <option>Outros</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Data da Ocorrência</label>
+                        <input type="date" class="form-input">
+                    </div>
+                `;
+            }
+        }
+
+        // File handling
+        function handleFileSelect(event) {
+            const files = event.target.files;
+            const fileList = document.getElementById('fileList');
+            
+            for (let file of files) {
+                const fileItem = document.createElement('div');
+                fileItem.className = 'file-item';
+                fileItem.innerHTML = `
+                    <span>${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)</span>
+                    <button class="btn btn-danger btn-sm" onclick="this.parentElement.remove()">Remover</button>
+                `;
+                fileList.appendChild(fileItem);
+            }
+        }
+
+        // Tab switching
+        function switchTab(tabElement, contentId) {
+            // Update tab active state
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            tabElement.classList.add('active');
+            
+            // Show corresponding content
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.style.display = 'none';
+            });
+            if (document.getElementById(contentId)) {
+                document.getElementById(contentId).style.display = 'block';
+            }
+        }
+
+        // View dispute details
+        function viewDispute(disputeId) {
+            console.log('Viewing dispute:', disputeId);
+            // Implement dispute detail view
+        }
+
+        // Open chat
+        function openChat(disputeId) {
+            showModal('chat');
+        }
+
+        // View documents
+        function viewDocuments(disputeId) {
+            showSection('documents');
+        }
+
+        // Form submission
+        document.getElementById('newDisputeForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            console.log('Submitting new dispute...');
+            // Implement form submission
+            alert('Disputa criada com sucesso!');
+            closeModal('newDispute');
+        });
+
+        // Simulate real-time updates
+        setInterval(() => {
+            // Update notification badge or refresh data
+            console.log('Checking for updates...');
+        }, 30000); // Every 30 seconds
+
+        // Two-factor authentication simulation
+        function enable2FA() {
+            console.log('Enabling 2FA...');
+            // Implement 2FA setup
+        }
+
+        // Audit log
+        function logAction(action, details) {
+            const timestamp = new Date().toISOString();
+            console.log(`[AUDIT] ${timestamp} - ${action}:`, details);
+            // Send to server
+        }
+
+        // Export functionality
+        function exportReport(format) {
+            console.log(`Exporting report as ${format}...`);
+            // Implement export functionality
+        }
+
+        // Search functionality
+        function searchDisputes(query) {
+            console.log('Searching disputes:', query);
+            // Implement search
+        }
+
+        // Filter arbitrators
+        function filterArbitrators(specialization) {
+            console.log('Filtering arbitrators by:', specialization);
+            // Implement filtering
+        }
+
+        // API Integration placeholder
+        class ArbitrivmAPI {
+            constructor() {
+                this.baseURL = '/api';
+            }
+
+            async createDispute(data) {
+                // POST /api/disputes
+                return fetch(`${this.baseURL}/disputes`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${this.getToken()}`
+                    },
+                    body: JSON.stringify(data)
+                });
+            }
+
+            async getDisputes(filters) {
+                // GET /api/disputes
+                const queryString = new URLSearchParams(filters).toString();
+                return fetch(`${this.baseURL}/disputes?${queryString}`, {
+                    headers: {
+                        'Authorization': `Bearer ${this.getToken()}`
+                    }
+                });
+            }
+
+            async uploadDocument(file, disputeId) {
+                // POST /api/documents
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('disputeId', disputeId);
+                
+                return fetch(`${this.baseURL}/documents`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${this.getToken()}`
+                    },
+                    body: formData
+                });
+            }
+
+            getToken() {
+                return localStorage.getItem('authToken') || '';
+            }
+        }
+
+        const api = new ArbitrivmAPI();
+    </script>
+</body>
+</html>
