@@ -1447,45 +1447,67 @@
                 this.baseURL = API_BASE_URL;
             }
 
-            async request(endpoint, options = {}) {
-                try {
-                    // Mapear endpoints para arquivos PHP diretos
-                    const endpointMap = {
-                        '/auth/login': '/login.php',
-                        '/auth/logout': '/logout.php',
-                        '/auth/check-session': '/check-session.php',
-                        '/disputes': '/disputes.php',
-                        '/disputes/types': '/dispute-types.php',
-                        '/dashboard/stats': '/dashboard.php',
-                        '/notifications': '/notifications.php',
-                        '/documents': '/documents.php'
-                    };
+        async request(endpoint, options = {}) {
+            try {
+                // Mapear endpoints para arquivos PHP diretos
+                const endpointMap = {
+                    '/auth/login': '/login.php',
+                    '/auth/logout': '/logout.php',
+                    '/auth/check-session': '/check-session.php',
+                    '/disputes': '/disputes.php',
+                    '/disputes/types': '/dispute-types.php',
+                    '/dashboard/stats': '/dashboard.php',
+                    '/notifications': '/notifications.php',
+                    '/documents': '/documents.php'
+                };
 
-                    // Usar o arquivo PHP correspondente
-                    const phpEndpoint = endpointMap[endpoint] || endpoint;
-                    const url = `${this.baseURL}${phpEndpoint}`;
+                // Usar o arquivo PHP correspondente
+                const phpEndpoint = endpointMap[endpoint] || endpoint;
+                const url = `${this.baseURL}${phpEndpoint}`;
 
-                    const response = await fetch(url, {
-                        ...options,
-                        credentials: 'include', // Important for PHP sessions
-                        headers: {
-                            'Content-Type': 'application/json',
-                            ...options.headers
-                        }
-                    });
-
-                    const data = await response.json();
-
-                    if (!response.ok) {
-                        throw new Error(data.message || `API Error: ${response.status}`);
+                // Preparar headers - não definir Content-Type se for FormData
+                const headers = { ...options.headers };
+                
+                // Só adicionar Content-Type se não for FormData e se não foi definido
+                if (!options.body || !(options.body instanceof FormData)) {
+                    if (!headers['Content-Type']) {
+                        headers['Content-Type'] = 'application/json';
                     }
-
-                    return data;
-                } catch (error) {
-                    console.error('API Error:', error);
-                    throw error;
                 }
+
+                const response = await fetch(url, {
+                    ...options,
+                    credentials: 'include', // Important for PHP sessions
+                    headers: headers
+                });
+
+                // Verificar se a resposta é JSON
+                const contentType = response.headers.get("content-type");
+                let data;
+                
+                if (contentType && contentType.indexOf("application/json") !== -1) {
+                    data = await response.json();
+                } else {
+                    // Se não for JSON, tentar fazer parse mesmo assim
+                    const text = await response.text();
+                    try {
+                        data = JSON.parse(text);
+                    } catch (e) {
+                        console.error('Response is not JSON:', text);
+                        throw new Error('Invalid server response');
+                    }
+                }
+
+                if (!response.ok) {
+                    throw new Error(data.message || `API Error: ${response.status}`);
+                }
+
+                return data;
+            } catch (error) {
+                console.error('API Error:', error);
+                throw error;
             }
+        }
 
             // Auth endpoints
             async login(email, password) {
@@ -1557,8 +1579,8 @@
 
                 return this.request('/documents', {
                     method: 'POST',
-                    headers: {}, // Let browser set content-type for FormData
                     body: formData
+                    // Não definir headers aqui - deixar o browser definir para FormData
                 });
             }
 
@@ -1580,8 +1602,11 @@
         // Initialize application
         async function init() {
             try {
+                console.log('Iniciando aplicação...');
+                
                 // Check if user is logged in
                 const sessionData = await api.checkSession();
+                console.log('Session data:', sessionData);
                 
                 if (sessionData.data.logged_in) {
                     currentUser = sessionData.data.user;
@@ -1592,6 +1617,7 @@
                     showLoginPage();
                 }
             } catch (error) {
+                console.error('Erro na inicialização:', error);
                 showLoginPage();
             }
         }
@@ -1621,7 +1647,9 @@
                 loginBtn.innerHTML = '<span class="spinner"></span> Entrando...';
                 messageDiv.innerHTML = '';
                 
+                console.log('Tentando login com:', email);
                 const response = await api.login(email, password);
+                console.log('Resposta do login:', response);
                 
                 if (response.success) {
                     currentUser = response.data.user;
@@ -1629,9 +1657,13 @@
                     showMainApp();
                     updateUserInfo();
                     loadDashboard();
+                } else {
+                    // Se a resposta tem success = false
+                    messageDiv.innerHTML = `<div class="error-message">${response.message || 'Erro ao fazer login'}</div>`;
                 }
             } catch (error) {
-                messageDiv.innerHTML = `<div class="error-message">${error.message}</div>`;
+                console.error('Erro no login:', error);
+                messageDiv.innerHTML = `<div class="error-message">${error.message || 'Erro ao conectar com o servidor'}</div>`;
             } finally {
                 loginBtn.disabled = false;
                 loginBtn.innerHTML = 'Entrar';
