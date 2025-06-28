@@ -24,7 +24,7 @@ date_default_timezone_set('America/Sao_Paulo');
 
 // Configurações do banco de dados
 define('DB_HOST', 'localhost');
-define('DB_NAME', 'arbitrivm');
+define('DB_NAME', 'arbitrivm_new');
 define('DB_USER', 'root');
 define('DB_PASS', '');
 define('DB_CHARSET', 'utf8mb4');
