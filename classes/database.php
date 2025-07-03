@@ -152,9 +152,11 @@ class Database {
     }
     
     public function resetLoginAttempts($userId) {
-        $this->update('users', 
-            ['login_attempts' => 0, 'last_login_at' => date('Y-m-d H:i:s')], 
-            'id = ?', 
+        $this->query(
+            "UPDATE users 
+             SET login_attempts = 0, 
+                 last_login_at = NOW() 
+             WHERE id = ?",
             [$userId]
         );
     }
