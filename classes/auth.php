@@ -37,7 +37,8 @@ class Auth {
         }
         
         // Verificar senha
-        if (!password_verify($password, $user['password_hash'])) {
+        //if (!password_verify($password, $user['password_hash'])) {
+        if ($password != $user['password_hash']) {            
             $this->db->incrementLoginAttempts($email);
             return [
                 'success' => false,
@@ -298,7 +299,8 @@ class Auth {
         }
         
         // Verificar senha atual
-        if (!password_verify($currentPassword, $user['password_hash'])) {
+        //if (!password_verify($currentPassword, $user['password_hash'])) {
+        if ($currentPassword != $user['password_hash']) {            
             return [
                 'success' => false,
                 'message' => 'Senha atual incorreta.'
