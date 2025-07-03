@@ -1,314 +1,31 @@
--- Tabela de empresas (B2B)
-CREATE TABLE companies (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    cnpj VARCHAR(18) UNIQUE NOT NULL,
-    company_name VARCHAR(255) NOT NULL,
-    trade_name VARCHAR(255),
-    company_type ENUM('real_estate', 'construction', 'condominium', 'other') NOT NULL,
-    address TEXT,
-    city VARCHAR(100),
-    state VARCHAR(2),
-    zip_code VARCHAR(9),
-    phone VARCHAR(20),
-    email VARCHAR(255) NOT NULL,
-    website VARCHAR(255),
-    subscription_plan ENUM('basic', 'professional', 'enterprise') DEFAULT 'basic',
-    subscription_status ENUM('active', 'inactive', 'suspended') DEFAULT 'active',
-    subscription_expires_at DATE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    INDEX idx_cnpj (cnpj),
-    INDEX idx_company_type (company_type),
-    INDEX idx_subscription_status (subscription_status)
-);
+-- phpMyAdmin SQL Dump
+-- version 5.2.1
+-- https://www.phpmyadmin.net/
+--
+-- Host: 127.0.0.1
+-- Tempo de geração: 03/07/2025 às 02:28
+-- Versão do servidor: 10.4.32-MariaDB
+-- Versão do PHP: 8.0.30
 
--- Tabela de usuários
-CREATE TABLE users (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    company_id INT,
-    email VARCHAR(255) UNIQUE NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,
-    first_name VARCHAR(100) NOT NULL,
-    last_name VARCHAR(100) NOT NULL,
-    cpf VARCHAR(14) UNIQUE,
-    phone VARCHAR(20),
-    role ENUM('admin', 'manager', 'user', 'arbitrator', 'party') NOT NULL,
-    is_active BOOLEAN DEFAULT TRUE,
-    is_verified BOOLEAN DEFAULT FALSE,
-    verification_token VARCHAR(255),
-    two_factor_enabled BOOLEAN DEFAULT FALSE,
-    two_factor_secret VARCHAR(255),
-    last_login_at TIMESTAMP NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
-    INDEX idx_email (email),
-    INDEX idx_role (role),
-    INDEX idx_company (company_id)
-);
+SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
+START TRANSACTION;
+SET time_zone = "+00:00";
 
--- Tabela de árbitros
-CREATE TABLE arbitrators (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    user_id INT UNIQUE NOT NULL,
-    registration_number VARCHAR(50) UNIQUE NOT NULL,
-    specializations TEXT,
-    bio TEXT,
-    experience_years INT,
-    hourly_rate DECIMAL(10,2),
-    cases_resolved INT DEFAULT 0,
-    success_rate DECIMAL(5,2) DEFAULT 0,
-    average_resolution_days INT DEFAULT 0,
-    rating DECIMAL(3,2) DEFAULT 0,
-    total_reviews INT DEFAULT 0,
-    is_available BOOLEAN DEFAULT TRUE,
-    documents_verified BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    INDEX idx_available (is_available),
-    INDEX idx_rating (rating),
-    INDEX idx_specializations (specializations)
-);
 
--- Tabela de tipos de disputa
-CREATE TABLE dispute_types (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    code VARCHAR(50) UNIQUE NOT NULL,
-    name VARCHAR(255) NOT NULL,
-    description TEXT,
-    category VARCHAR(100),
-    is_active BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
+/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
+/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
+/*!40101 SET NAMES utf8mb4 */;
 
--- Inserir tipos de disputa padrão
-INSERT INTO dispute_types (code, name, category) VALUES
-('property_damage', 'Danos ao Imóvel', 'Locação'),
-('condo_infraction', 'Infração Condominial', 'Condomínio'),
-('rent_payment', 'Inadimplência de Aluguel', 'Locação'),
-('contract_breach', 'Quebra de Contrato', 'Geral'),
-('maintenance_dispute', 'Disputa sobre Manutenção', 'Manutenção'),
-('deposit_return', 'Devolução de Caução', 'Locação');
+--
+-- Banco de dados: `arbitrivm_new`
+--
 
--- Tabela de disputas
-CREATE TABLE disputes (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    case_number VARCHAR(20) UNIQUE NOT NULL,
-    company_id INT NOT NULL,
-    dispute_type_id INT NOT NULL,
-    claimant_id INT NOT NULL,
-    respondent_id INT NOT NULL,
-    arbitrator_id INT,
-    status ENUM('draft', 'pending_arbitrator', 'pending_acceptance', 'active', 'on_hold', 'resolved', 'cancelled') NOT NULL DEFAULT 'draft',
-    title VARCHAR(255) NOT NULL,
-    description TEXT NOT NULL,
-    claim_amount DECIMAL(12,2),
-    property_address TEXT,
-    contract_number VARCHAR(100),
-    priority ENUM('low', 'normal', 'high', 'urgent') DEFAULT 'normal',
-    deadline_date DATE,
-    started_at TIMESTAMP NULL,
-    resolved_at TIMESTAMP NULL,
-    resolution_summary TEXT,
-    decision_document_id INT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (company_id) REFERENCES companies(id),
-    FOREIGN KEY (dispute_type_id) REFERENCES dispute_types(id),
-    FOREIGN KEY (claimant_id) REFERENCES users(id),
-    FOREIGN KEY (respondent_id) REFERENCES users(id),
-    FOREIGN KEY (arbitrator_id) REFERENCES arbitrators(id),
-    INDEX idx_case_number (case_number),
-    INDEX idx_status (status),
-    INDEX idx_company (company_id),
-    INDEX idx_arbitrator (arbitrator_id),
-    INDEX idx_dates (created_at, resolved_at)
-);
-
--- Tabela de documentos
-CREATE TABLE documents (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    dispute_id INT NOT NULL,
-    uploaded_by INT NOT NULL,
-    file_name VARCHAR(255) NOT NULL,
-    file_path VARCHAR(500) NOT NULL,
-    file_size INT NOT NULL,
-    file_type VARCHAR(100),
-    document_type ENUM('contract', 'evidence', 'report', 'photo', 'video', 'audio', 'decision', 'other') NOT NULL,
-    description TEXT,
-    is_confidential BOOLEAN DEFAULT FALSE,
-    hash_verification VARCHAR(64),
-    metadata JSON,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (dispute_id) REFERENCES disputes(id) ON DELETE CASCADE,
-    FOREIGN KEY (uploaded_by) REFERENCES users(id),
-    INDEX idx_dispute (dispute_id),
-    INDEX idx_type (document_type),
-    INDEX idx_uploaded_by (uploaded_by)
-);
-
--- Tabela de mensagens do chat
-CREATE TABLE messages (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    dispute_id INT NOT NULL,
-    sender_id INT NOT NULL,
-    message TEXT NOT NULL,
-    is_system_message BOOLEAN DEFAULT FALSE,
-    attachments JSON,
-    read_by JSON,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (dispute_id) REFERENCES disputes(id) ON DELETE CASCADE,
-    FOREIGN KEY (sender_id) REFERENCES users(id),
-    INDEX idx_dispute (dispute_id),
-    INDEX idx_sender (sender_id),
-    INDEX idx_created (created_at)
-);
-
--- Tabela de notificações
-CREATE TABLE notifications (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    user_id INT NOT NULL,
-    type VARCHAR(50) NOT NULL,
-    title VARCHAR(255) NOT NULL,
-    message TEXT NOT NULL,
-    data JSON,
-    is_read BOOLEAN DEFAULT FALSE,
-    read_at TIMESTAMP NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    INDEX idx_user (user_id),
-    INDEX idx_read (is_read),
-    INDEX idx_created (created_at)
-);
-
--- Tabela de eventos/timeline da disputa
-CREATE TABLE dispute_events (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    dispute_id INT NOT NULL,
-    user_id INT NOT NULL,
-    event_type VARCHAR(50) NOT NULL,
-    description TEXT NOT NULL,
-    metadata JSON,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (dispute_id) REFERENCES disputes(id) ON DELETE CASCADE,
-    FOREIGN KEY (user_id) REFERENCES users(id),
-    INDEX idx_dispute (dispute_id),
-    INDEX idx_created (created_at)
-);
-
--- Tabela de avaliações
-CREATE TABLE reviews (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    dispute_id INT NOT NULL,
-    reviewer_id INT NOT NULL,
-    arbitrator_id INT NOT NULL,
-    rating INT NOT NULL CHECK (rating >= 1 AND rating <= 5),
-    comment TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (dispute_id) REFERENCES disputes(id),
-    FOREIGN KEY (reviewer_id) REFERENCES users(id),
-    FOREIGN KEY (arbitrator_id) REFERENCES arbitrators(id),
-    UNIQUE KEY unique_review (dispute_id, reviewer_id),
-    INDEX idx_arbitrator (arbitrator_id)
-);
-
--- Tabela de pagamentos
-CREATE TABLE payments (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    company_id INT NOT NULL,
-    dispute_id INT,
-    amount DECIMAL(10,2) NOT NULL,
-    payment_type ENUM('subscription', 'arbitration_fee', 'additional_service') NOT NULL,
-    payment_method ENUM('credit_card', 'debit_card', 'bank_transfer', 'pix', 'boleto') NOT NULL,
-    status ENUM('pending', 'processing', 'completed', 'failed', 'refunded') NOT NULL DEFAULT 'pending',
-    gateway_transaction_id VARCHAR(255),
-    gateway_response JSON,
-    paid_at TIMESTAMP NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (company_id) REFERENCES companies(id),
-    FOREIGN KEY (dispute_id) REFERENCES disputes(id),
-    INDEX idx_company (company_id),
-    INDEX idx_status (status),
-    INDEX idx_type (payment_type)
-);
-
--- Tabela de logs de auditoria
-CREATE TABLE audit_logs (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    user_id INT,
-    action VARCHAR(100) NOT NULL,
-    entity_type VARCHAR(50),
-    entity_id INT,
-    old_values JSON,
-    new_values JSON,
-    ip_address VARCHAR(45),
-    user_agent TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
-    INDEX idx_user (user_id),
-    INDEX idx_action (action),
-    INDEX idx_entity (entity_type, entity_id),
-    INDEX idx_created (created_at)
-);
-
--- Tabela de sessões (para JWT refresh tokens)
-CREATE TABLE user_sessions (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    user_id INT NOT NULL,
-    refresh_token VARCHAR(500) UNIQUE NOT NULL,
-    device_info JSON,
-    ip_address VARCHAR(45),
-    expires_at TIMESTAMP NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    INDEX idx_user (user_id),
-    INDEX idx_token (refresh_token),
-    INDEX idx_expires (expires_at)
-);
-
--- Tabela de templates de documentos
-CREATE TABLE document_templates (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    name VARCHAR(255) NOT NULL,
-    type VARCHAR(50) NOT NULL,
-    content TEXT NOT NULL,
-    variables JSON,
-    is_active BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-);
-
--- Views úteis
-CREATE VIEW dispute_summary AS
-SELECT 
-    d.id,
-    d.case_number,
-    d.title,
-    d.status,
-    d.created_at,
-    d.resolved_at,
-    dt.name as dispute_type,
-    c.company_name,
-    CONCAT(u1.first_name, ' ', u1.last_name) as claimant_name,
-    CONCAT(u2.first_name, ' ', u2.last_name) as respondent_name,
-    CONCAT(u3.first_name, ' ', u3.last_name) as arbitrator_name,
-    d.claim_amount,
-    DATEDIFF(IFNULL(d.resolved_at, NOW()), d.created_at) as duration_days
-FROM disputes d
-JOIN dispute_types dt ON d.dispute_type_id = dt.id
-JOIN companies c ON d.company_id = c.id
-JOIN users u1 ON d.claimant_id = u1.id
-JOIN users u2 ON d.respondent_id = u2.id
-LEFT JOIN arbitrators a ON d.arbitrator_id = a.id
-LEFT JOIN users u3 ON a.user_id = u3.id;
-
--- Stored Procedures
-DELIMITER //
-
-CREATE PROCEDURE update_arbitrator_stats(IN p_arbitrator_id INT)
-BEGIN
+DELIMITER $$
+--
+-- Procedimentos
+--
+CREATE DEFINER=`root`@`localhost` PROCEDURE `update_arbitrator_stats` (IN `p_arbitrator_id` INT)   BEGIN
     UPDATE arbitrators a
     SET 
         cases_resolved = (
@@ -336,28 +53,133 @@ BEGIN
             WHERE arbitrator_id = p_arbitrator_id
         )
     WHERE id = p_arbitrator_id;
-END//
+END$$
 
 DELIMITER ;
 
--- Triggers
-DELIMITER //
+-- --------------------------------------------------------
 
-CREATE TRIGGER generate_case_number 
-BEFORE INSERT ON disputes
-FOR EACH ROW
-BEGIN
+--
+-- Estrutura para tabela `arbitrators`
+--
+
+CREATE TABLE `arbitrators` (
+  `id` int(11) NOT NULL,
+  `user_id` int(11) NOT NULL,
+  `registration_number` varchar(50) NOT NULL,
+  `specializations` text DEFAULT NULL,
+  `bio` text DEFAULT NULL,
+  `experience_years` int(11) DEFAULT NULL,
+  `hourly_rate` decimal(10,2) DEFAULT NULL,
+  `cases_resolved` int(11) DEFAULT 0,
+  `success_rate` decimal(5,2) DEFAULT 0.00,
+  `average_resolution_days` int(11) DEFAULT 0,
+  `rating` decimal(3,2) DEFAULT 0.00,
+  `total_reviews` int(11) DEFAULT 0,
+  `is_available` tinyint(1) DEFAULT 1,
+  `documents_verified` tinyint(1) DEFAULT 0,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Estrutura para tabela `audit_logs`
+--
+
+CREATE TABLE `audit_logs` (
+  `id` int(11) NOT NULL,
+  `user_id` int(11) DEFAULT NULL,
+  `action` varchar(100) NOT NULL,
+  `entity_type` varchar(50) DEFAULT NULL,
+  `entity_id` int(11) DEFAULT NULL,
+  `old_values` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`old_values`)),
+  `new_values` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`new_values`)),
+  `ip_address` varchar(45) DEFAULT NULL,
+  `user_agent` text DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Estrutura para tabela `companies`
+--
+
+CREATE TABLE `companies` (
+  `id` int(11) NOT NULL,
+  `cnpj` varchar(18) NOT NULL,
+  `company_name` varchar(255) NOT NULL,
+  `trade_name` varchar(255) DEFAULT NULL,
+  `company_type` enum('real_estate','construction','condominium','other') NOT NULL,
+  `address` text DEFAULT NULL,
+  `city` varchar(100) DEFAULT NULL,
+  `state` varchar(2) DEFAULT NULL,
+  `zip_code` varchar(9) DEFAULT NULL,
+  `phone` varchar(20) DEFAULT NULL,
+  `email` varchar(255) NOT NULL,
+  `website` varchar(255) DEFAULT NULL,
+  `subscription_plan` enum('basic','professional','enterprise') DEFAULT 'basic',
+  `subscription_status` enum('active','inactive','suspended') DEFAULT 'active',
+  `subscription_expires_at` date DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Despejando dados para a tabela `companies`
+--
+
+INSERT INTO `companies` (`id`, `cnpj`, `company_name`, `trade_name`, `company_type`, `address`, `city`, `state`, `zip_code`, `phone`, `email`, `website`, `subscription_plan`, `subscription_status`, `subscription_expires_at`, `created_at`, `updated_at`) VALUES
+(1, '12.345.678/0001-90', 'Empresa Teste', NULL, 'real_estate', NULL, NULL, NULL, NULL, NULL, 'teste@empresa.com', NULL, 'basic', 'active', NULL, '2025-06-28 18:32:13', '2025-06-28 18:32:13'),
+(2, '11.111.111/0001-11', 'Empresa Teste', NULL, 'real_estate', NULL, NULL, NULL, NULL, NULL, 'teste@empresa.com', NULL, 'basic', 'active', NULL, '2025-07-02 23:59:38', '2025-07-02 23:59:38');
+
+-- --------------------------------------------------------
+
+--
+-- Estrutura para tabela `disputes`
+--
+
+CREATE TABLE `disputes` (
+  `id` int(11) NOT NULL,
+  `case_number` varchar(20) NOT NULL,
+  `company_id` int(11) NOT NULL,
+  `dispute_type_id` int(11) NOT NULL,
+  `claimant_id` int(11) NOT NULL,
+  `respondent_id` int(11) NOT NULL,
+  `arbitrator_id` int(11) DEFAULT NULL,
+  `status` enum('draft','pending_arbitrator','pending_acceptance','active','on_hold','resolved','cancelled') NOT NULL DEFAULT 'draft',
+  `title` varchar(255) NOT NULL,
+  `description` text NOT NULL,
+  `claim_amount` decimal(12,2) DEFAULT NULL,
+  `property_address` text DEFAULT NULL,
+  `contract_number` varchar(100) DEFAULT NULL,
+  `priority` enum('low','normal','high','urgent') DEFAULT 'normal',
+  `deadline_date` date DEFAULT NULL,
+  `started_at` timestamp NULL DEFAULT NULL,
+  `resolved_at` timestamp NULL DEFAULT NULL,
+  `resolution_summary` text DEFAULT NULL,
+  `decision_document_id` int(11) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Acionadores `disputes`
+--
+DELIMITER $$
+CREATE TRIGGER `generate_case_number` BEFORE INSERT ON `disputes` FOR EACH ROW BEGIN
     DECLARE next_number INT;
     SELECT IFNULL(MAX(CAST(SUBSTRING(case_number, 2) AS UNSIGNED)), 0) + 1 
     INTO next_number 
     FROM disputes;
     SET NEW.case_number = CONCAT('#', LPAD(next_number, 6, '0'));
-END//
-
-CREATE TRIGGER log_dispute_status_change
-AFTER UPDATE ON disputes
-FOR EACH ROW
-BEGIN
+END
+$$
+DELIMITER ;
+DELIMITER $$
+CREATE TRIGGER `log_dispute_status_change` AFTER UPDATE ON `disputes` FOR EACH ROW BEGIN
     IF OLD.status != NEW.status THEN
         INSERT INTO dispute_events (dispute_id, user_id, event_type, description, metadata)
         VALUES (
@@ -368,6 +190,559 @@ BEGIN
             JSON_OBJECT('old_status', OLD.status, 'new_status', NEW.status)
         );
     END IF;
-END//
-
+END
+$$
 DELIMITER ;
+
+-- --------------------------------------------------------
+
+--
+-- Estrutura para tabela `dispute_events`
+--
+
+CREATE TABLE `dispute_events` (
+  `id` int(11) NOT NULL,
+  `dispute_id` int(11) NOT NULL,
+  `user_id` int(11) NOT NULL,
+  `event_type` varchar(50) NOT NULL,
+  `description` text NOT NULL,
+  `metadata` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`metadata`)),
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Estrutura stand-in para view `dispute_summary`
+-- (Veja abaixo para a visão atual)
+--
+CREATE TABLE `dispute_summary` (
+`id` int(11)
+,`case_number` varchar(20)
+,`title` varchar(255)
+,`status` enum('draft','pending_arbitrator','pending_acceptance','active','on_hold','resolved','cancelled')
+,`created_at` timestamp
+,`resolved_at` timestamp
+,`dispute_type` varchar(255)
+,`company_name` varchar(255)
+,`claimant_name` varchar(201)
+,`respondent_name` varchar(201)
+,`arbitrator_name` varchar(201)
+,`claim_amount` decimal(12,2)
+,`duration_days` int(7)
+);
+
+-- --------------------------------------------------------
+
+--
+-- Estrutura para tabela `dispute_types`
+--
+
+CREATE TABLE `dispute_types` (
+  `id` int(11) NOT NULL,
+  `code` varchar(50) NOT NULL,
+  `name` varchar(255) NOT NULL,
+  `description` text DEFAULT NULL,
+  `category` varchar(100) DEFAULT NULL,
+  `is_active` tinyint(1) DEFAULT 1,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Despejando dados para a tabela `dispute_types`
+--
+
+INSERT INTO `dispute_types` (`id`, `code`, `name`, `description`, `category`, `is_active`, `created_at`) VALUES
+(1, 'property_damage', 'Danos ao Imóvel', NULL, 'Locação', 1, '2025-06-28 16:11:43'),
+(2, 'condo_infraction', 'Infração Condominial', NULL, 'Condomínio', 1, '2025-06-28 16:11:43'),
+(3, 'rent_payment', 'Inadimplência de Aluguel', NULL, 'Locação', 1, '2025-06-28 16:11:43'),
+(4, 'contract_breach', 'Quebra de Contrato', NULL, 'Geral', 1, '2025-06-28 16:11:43'),
+(5, 'maintenance_dispute', 'Disputa sobre Manutenção', NULL, 'Manutenção', 1, '2025-06-28 16:11:43'),
+(6, 'deposit_return', 'Devolução de Caução', NULL, 'Locação', 1, '2025-06-28 16:11:43');
+
+-- --------------------------------------------------------
+
+--
+-- Estrutura para tabela `documents`
+--
+
+CREATE TABLE `documents` (
+  `id` int(11) NOT NULL,
+  `dispute_id` int(11) NOT NULL,
+  `uploaded_by` int(11) NOT NULL,
+  `file_name` varchar(255) NOT NULL,
+  `file_path` varchar(500) NOT NULL,
+  `file_size` int(11) NOT NULL,
+  `file_type` varchar(100) DEFAULT NULL,
+  `document_type` enum('contract','evidence','report','photo','video','audio','decision','other') NOT NULL,
+  `description` text DEFAULT NULL,
+  `is_confidential` tinyint(1) DEFAULT 0,
+  `hash_verification` varchar(64) DEFAULT NULL,
+  `metadata` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`metadata`)),
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Estrutura para tabela `document_templates`
+--
+
+CREATE TABLE `document_templates` (
+  `id` int(11) NOT NULL,
+  `name` varchar(255) NOT NULL,
+  `type` varchar(50) NOT NULL,
+  `content` text NOT NULL,
+  `variables` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`variables`)),
+  `is_active` tinyint(1) DEFAULT 1,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Estrutura para tabela `messages`
+--
+
+CREATE TABLE `messages` (
+  `id` int(11) NOT NULL,
+  `dispute_id` int(11) NOT NULL,
+  `sender_id` int(11) NOT NULL,
+  `message` text NOT NULL,
+  `is_system_message` tinyint(1) DEFAULT 0,
+  `attachments` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`attachments`)),
+  `read_by` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`read_by`)),
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Estrutura para tabela `notifications`
+--
+
+CREATE TABLE `notifications` (
+  `id` int(11) NOT NULL,
+  `user_id` int(11) NOT NULL,
+  `type` varchar(50) NOT NULL,
+  `title` varchar(255) NOT NULL,
+  `message` text NOT NULL,
+  `data` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`data`)),
+  `is_read` tinyint(1) DEFAULT 0,
+  `read_at` timestamp NULL DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Estrutura para tabela `payments`
+--
+
+CREATE TABLE `payments` (
+  `id` int(11) NOT NULL,
+  `company_id` int(11) NOT NULL,
+  `dispute_id` int(11) DEFAULT NULL,
+  `amount` decimal(10,2) NOT NULL,
+  `payment_type` enum('subscription','arbitration_fee','additional_service') NOT NULL,
+  `payment_method` enum('credit_card','debit_card','bank_transfer','pix','boleto') NOT NULL,
+  `status` enum('pending','processing','completed','failed','refunded') NOT NULL DEFAULT 'pending',
+  `gateway_transaction_id` varchar(255) DEFAULT NULL,
+  `gateway_response` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`gateway_response`)),
+  `paid_at` timestamp NULL DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Estrutura para tabela `reviews`
+--
+
+CREATE TABLE `reviews` (
+  `id` int(11) NOT NULL,
+  `dispute_id` int(11) NOT NULL,
+  `reviewer_id` int(11) NOT NULL,
+  `arbitrator_id` int(11) NOT NULL,
+  `rating` int(11) NOT NULL CHECK (`rating` >= 1 and `rating` <= 5),
+  `comment` text DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Estrutura para tabela `users`
+--
+
+CREATE TABLE `users` (
+  `id` int(11) NOT NULL,
+  `company_id` int(11) DEFAULT NULL,
+  `email` varchar(255) NOT NULL,
+  `password_hash` varchar(255) NOT NULL,
+  `first_name` varchar(100) NOT NULL,
+  `last_name` varchar(100) NOT NULL,
+  `cpf` varchar(14) DEFAULT NULL,
+  `phone` varchar(20) DEFAULT NULL,
+  `role` enum('admin','manager','user','arbitrator','party') NOT NULL,
+  `is_active` tinyint(1) DEFAULT 1,
+  `is_verified` tinyint(1) DEFAULT 0,
+  `verification_token` varchar(255) DEFAULT NULL,
+  `two_factor_enabled` tinyint(1) DEFAULT 0,
+  `two_factor_secret` varchar(255) DEFAULT NULL,
+  `login_attempts` int(11) DEFAULT 0,
+  `last_attempt_at` timestamp NULL DEFAULT NULL,
+  `reset_token` varchar(255) DEFAULT NULL,
+  `reset_token_expires` timestamp NULL DEFAULT NULL,
+  `last_login_at` timestamp NULL DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Despejando dados para a tabela `users`
+--
+
+INSERT INTO `users` (`id`, `company_id`, `email`, `password_hash`, `first_name`, `last_name`, `cpf`, `phone`, `role`, `is_active`, `is_verified`, `verification_token`, `two_factor_enabled`, `two_factor_secret`, `login_attempts`, `last_attempt_at`, `reset_token`, `reset_token_expires`, `last_login_at`, `created_at`, `updated_at`) VALUES
+(1, 1, 'teste@teste.com', 'teste', 'Teste', 'Usuário', NULL, NULL, 'manager', 1, 1, NULL, 0, NULL, 2, '2025-07-03 00:24:07', NULL, NULL, NULL, '2025-06-28 18:32:13', '2025-07-03 00:24:07');
+
+-- --------------------------------------------------------
+
+--
+-- Estrutura para tabela `user_sessions`
+--
+
+CREATE TABLE `user_sessions` (
+  `id` int(11) NOT NULL,
+  `user_id` int(11) NOT NULL,
+  `refresh_token` varchar(500) NOT NULL,
+  `device_info` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`device_info`)),
+  `ip_address` varchar(45) DEFAULT NULL,
+  `expires_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Estrutura para view `dispute_summary`
+--
+DROP TABLE IF EXISTS `dispute_summary`;
+
+CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `dispute_summary`  AS SELECT `d`.`id` AS `id`, `d`.`case_number` AS `case_number`, `d`.`title` AS `title`, `d`.`status` AS `status`, `d`.`created_at` AS `created_at`, `d`.`resolved_at` AS `resolved_at`, `dt`.`name` AS `dispute_type`, `c`.`company_name` AS `company_name`, concat(`u1`.`first_name`,' ',`u1`.`last_name`) AS `claimant_name`, concat(`u2`.`first_name`,' ',`u2`.`last_name`) AS `respondent_name`, concat(`u3`.`first_name`,' ',`u3`.`last_name`) AS `arbitrator_name`, `d`.`claim_amount` AS `claim_amount`, to_days(ifnull(`d`.`resolved_at`,current_timestamp())) - to_days(`d`.`created_at`) AS `duration_days` FROM ((((((`disputes` `d` join `dispute_types` `dt` on(`d`.`dispute_type_id` = `dt`.`id`)) join `companies` `c` on(`d`.`company_id` = `c`.`id`)) join `users` `u1` on(`d`.`claimant_id` = `u1`.`id`)) join `users` `u2` on(`d`.`respondent_id` = `u2`.`id`)) left join `arbitrators` `a` on(`d`.`arbitrator_id` = `a`.`id`)) left join `users` `u3` on(`a`.`user_id` = `u3`.`id`)) ;
+
+--
+-- Índices para tabelas despejadas
+--
+
+--
+-- Índices de tabela `arbitrators`
+--
+ALTER TABLE `arbitrators`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `user_id` (`user_id`),
+  ADD UNIQUE KEY `registration_number` (`registration_number`),
+  ADD KEY `idx_available` (`is_available`),
+  ADD KEY `idx_rating` (`rating`),
+  ADD KEY `idx_specializations` (`specializations`(768));
+
+--
+-- Índices de tabela `audit_logs`
+--
+ALTER TABLE `audit_logs`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_user` (`user_id`),
+  ADD KEY `idx_action` (`action`),
+  ADD KEY `idx_entity` (`entity_type`,`entity_id`),
+  ADD KEY `idx_created` (`created_at`);
+
+--
+-- Índices de tabela `companies`
+--
+ALTER TABLE `companies`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `cnpj` (`cnpj`),
+  ADD KEY `idx_cnpj` (`cnpj`),
+  ADD KEY `idx_company_type` (`company_type`),
+  ADD KEY `idx_subscription_status` (`subscription_status`);
+
+--
+-- Índices de tabela `disputes`
+--
+ALTER TABLE `disputes`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `case_number` (`case_number`),
+  ADD KEY `dispute_type_id` (`dispute_type_id`),
+  ADD KEY `claimant_id` (`claimant_id`),
+  ADD KEY `respondent_id` (`respondent_id`),
+  ADD KEY `idx_case_number` (`case_number`),
+  ADD KEY `idx_status` (`status`),
+  ADD KEY `idx_company` (`company_id`),
+  ADD KEY `idx_arbitrator` (`arbitrator_id`),
+  ADD KEY `idx_dates` (`created_at`,`resolved_at`);
+
+--
+-- Índices de tabela `dispute_events`
+--
+ALTER TABLE `dispute_events`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `user_id` (`user_id`),
+  ADD KEY `idx_dispute` (`dispute_id`),
+  ADD KEY `idx_created` (`created_at`);
+
+--
+-- Índices de tabela `dispute_types`
+--
+ALTER TABLE `dispute_types`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `code` (`code`);
+
+--
+-- Índices de tabela `documents`
+--
+ALTER TABLE `documents`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_dispute` (`dispute_id`),
+  ADD KEY `idx_type` (`document_type`),
+  ADD KEY `idx_uploaded_by` (`uploaded_by`);
+
+--
+-- Índices de tabela `document_templates`
+--
+ALTER TABLE `document_templates`
+  ADD PRIMARY KEY (`id`);
+
+--
+-- Índices de tabela `messages`
+--
+ALTER TABLE `messages`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_dispute` (`dispute_id`),
+  ADD KEY `idx_sender` (`sender_id`),
+  ADD KEY `idx_created` (`created_at`);
+
+--
+-- Índices de tabela `notifications`
+--
+ALTER TABLE `notifications`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_user` (`user_id`),
+  ADD KEY `idx_read` (`is_read`),
+  ADD KEY `idx_created` (`created_at`);
+
+--
+-- Índices de tabela `payments`
+--
+ALTER TABLE `payments`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `dispute_id` (`dispute_id`),
+  ADD KEY `idx_company` (`company_id`),
+  ADD KEY `idx_status` (`status`),
+  ADD KEY `idx_type` (`payment_type`);
+
+--
+-- Índices de tabela `reviews`
+--
+ALTER TABLE `reviews`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `unique_review` (`dispute_id`,`reviewer_id`),
+  ADD KEY `reviewer_id` (`reviewer_id`),
+  ADD KEY `idx_arbitrator` (`arbitrator_id`);
+
+--
+-- Índices de tabela `users`
+--
+ALTER TABLE `users`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `email` (`email`),
+  ADD UNIQUE KEY `cpf` (`cpf`),
+  ADD KEY `idx_email` (`email`),
+  ADD KEY `idx_role` (`role`),
+  ADD KEY `idx_company` (`company_id`),
+  ADD KEY `idx_login_attempts` (`email`,`login_attempts`),
+  ADD KEY `idx_reset_token` (`reset_token`);
+
+--
+-- Índices de tabela `user_sessions`
+--
+ALTER TABLE `user_sessions`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `refresh_token` (`refresh_token`),
+  ADD KEY `idx_user` (`user_id`),
+  ADD KEY `idx_token` (`refresh_token`),
+  ADD KEY `idx_expires` (`expires_at`);
+
+--
+-- AUTO_INCREMENT para tabelas despejadas
+--
+
+--
+-- AUTO_INCREMENT de tabela `arbitrators`
+--
+ALTER TABLE `arbitrators`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT de tabela `audit_logs`
+--
+ALTER TABLE `audit_logs`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT de tabela `companies`
+--
+ALTER TABLE `companies`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+
+--
+-- AUTO_INCREMENT de tabela `disputes`
+--
+ALTER TABLE `disputes`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT de tabela `dispute_events`
+--
+ALTER TABLE `dispute_events`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT de tabela `dispute_types`
+--
+ALTER TABLE `dispute_types`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
+
+--
+-- AUTO_INCREMENT de tabela `documents`
+--
+ALTER TABLE `documents`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT de tabela `document_templates`
+--
+ALTER TABLE `document_templates`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT de tabela `messages`
+--
+ALTER TABLE `messages`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT de tabela `notifications`
+--
+ALTER TABLE `notifications`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT de tabela `payments`
+--
+ALTER TABLE `payments`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT de tabela `reviews`
+--
+ALTER TABLE `reviews`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT de tabela `users`
+--
+ALTER TABLE `users`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+
+--
+-- AUTO_INCREMENT de tabela `user_sessions`
+--
+ALTER TABLE `user_sessions`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- Restrições para tabelas despejadas
+--
+
+--
+-- Restrições para tabelas `arbitrators`
+--
+ALTER TABLE `arbitrators`
+  ADD CONSTRAINT `arbitrators_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
+
+--
+-- Restrições para tabelas `audit_logs`
+--
+ALTER TABLE `audit_logs`
+  ADD CONSTRAINT `audit_logs_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL;
+
+--
+-- Restrições para tabelas `disputes`
+--
+ALTER TABLE `disputes`
+  ADD CONSTRAINT `disputes_ibfk_1` FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`),
+  ADD CONSTRAINT `disputes_ibfk_2` FOREIGN KEY (`dispute_type_id`) REFERENCES `dispute_types` (`id`),
+  ADD CONSTRAINT `disputes_ibfk_3` FOREIGN KEY (`claimant_id`) REFERENCES `users` (`id`),
+  ADD CONSTRAINT `disputes_ibfk_4` FOREIGN KEY (`respondent_id`) REFERENCES `users` (`id`),
+  ADD CONSTRAINT `disputes_ibfk_5` FOREIGN KEY (`arbitrator_id`) REFERENCES `arbitrators` (`id`);
+
+--
+-- Restrições para tabelas `dispute_events`
+--
+ALTER TABLE `dispute_events`
+  ADD CONSTRAINT `dispute_events_ibfk_1` FOREIGN KEY (`dispute_id`) REFERENCES `disputes` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `dispute_events_ibfk_2` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`);
+
+--
+-- Restrições para tabelas `documents`
+--
+ALTER TABLE `documents`
+  ADD CONSTRAINT `documents_ibfk_1` FOREIGN KEY (`dispute_id`) REFERENCES `disputes` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `documents_ibfk_2` FOREIGN KEY (`uploaded_by`) REFERENCES `users` (`id`);
+
+--
+-- Restrições para tabelas `messages`
+--
+ALTER TABLE `messages`
+  ADD CONSTRAINT `messages_ibfk_1` FOREIGN KEY (`dispute_id`) REFERENCES `disputes` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `messages_ibfk_2` FOREIGN KEY (`sender_id`) REFERENCES `users` (`id`);
+
+--
+-- Restrições para tabelas `notifications`
+--
+ALTER TABLE `notifications`
+  ADD CONSTRAINT `notifications_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
+
+--
+-- Restrições para tabelas `payments`
+--
+ALTER TABLE `payments`
+  ADD CONSTRAINT `payments_ibfk_1` FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`),
+  ADD CONSTRAINT `payments_ibfk_2` FOREIGN KEY (`dispute_id`) REFERENCES `disputes` (`id`);
+
+--
+-- Restrições para tabelas `reviews`
+--
+ALTER TABLE `reviews`
+  ADD CONSTRAINT `reviews_ibfk_1` FOREIGN KEY (`dispute_id`) REFERENCES `disputes` (`id`),
+  ADD CONSTRAINT `reviews_ibfk_2` FOREIGN KEY (`reviewer_id`) REFERENCES `users` (`id`),
+  ADD CONSTRAINT `reviews_ibfk_3` FOREIGN KEY (`arbitrator_id`) REFERENCES `arbitrators` (`id`);
+
+--
+-- Restrições para tabelas `users`
+--
+ALTER TABLE `users`
+  ADD CONSTRAINT `users_ibfk_1` FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`) ON DELETE CASCADE;
+
+--
+-- Restrições para tabelas `user_sessions`
+--
+ALTER TABLE `user_sessions`
+  ADD CONSTRAINT `user_sessions_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
+COMMIT;
+
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
+/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
+/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
