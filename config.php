@@ -87,7 +87,6 @@ define('ITEMS_PER_PAGE', 20);
 // Diretórios
 define('ROOT_PATH', dirname(__FILE__));
 define('INCLUDES_PATH', ROOT_PATH . '/includes/');
-define('CLASSES_PATH', ROOT_PATH . '/classes/');
 define('API_PATH_DIR', ROOT_PATH . '/api/');
 define('LOGS_PATH', ROOT_PATH . '/logs/');
 

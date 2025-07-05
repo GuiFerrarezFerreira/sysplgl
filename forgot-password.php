@@ -1,40 +1,70 @@
 <?php
 /**
- * Arbitrivm - Recuperação de Senha
+ * forgot-password.php - Recuperação de Senha
  */
 
+session_start();
 require_once 'config.php';
+require_once 'includes/database.php';
+require_once 'includes/functions.php';
 
-// Se já estiver logado, redirecionar
-if (isLoggedIn()) {
-    redirect('index.php');
-    exit;
-}
-
+$db = new Database();
 $message = '';
-$error = '';
-$success = false;
+$messageType = '';
 
-// Processar solicitação
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $email = $_POST['email'] ?? '';
+    $email = filter_var($_POST['email'] ?? '', FILTER_SANITIZE_EMAIL);
     
-    if (validateCSRF($_POST['csrf_token'] ?? '')) {
-        $auth = new Auth();
-        $result = $auth->forgotPassword($email);
-        
-        if ($result['success']) {
-            $success = true;
-            $message = $result['message'];
-        } else {
-            $error = $result['message'];
-        }
+    if (empty($email)) {
+        $message = 'Por favor, informe seu email.';
+        $messageType = 'error';
+    } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $message = 'Por favor, informe um email válido.';
+        $messageType = 'error';
     } else {
-        $error = 'Token de segurança inválido. Por favor, recarregue a página.';
+        // Buscar usuário
+        $user = $db->fetchOne("SELECT id, name, email FROM users WHERE email = ?", [$email]);
+        
+        if ($user) {
+            // Gerar token
+            $token = bin2hex(random_bytes(32));
+            $expiry = date('Y-m-d H:i:s', strtotime('+1 hour'));
+            
+            // Salvar token no banco
+            $db->insert('password_resets', [
+                'user_id' => $user['id'],
+                'token' => $token,
+                'expires_at' => $expiry
+            ]);
+            
+            // Enviar email
+            $resetLink = BASE_URL . "/reset-password.php?token=" . $token;
+            $emailBody = "
+                <h2>Recuperação de Senha - Arbitrivm</h2>
+                <p>Olá {$user['name']},</p>
+                <p>Recebemos uma solicitação para redefinir sua senha.</p>
+                <p>Para criar uma nova senha, clique no link abaixo:</p>
+                <p><a href='{$resetLink}' style='background: #2563eb; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;'>Redefinir Senha</a></p>
+                <p>Ou copie e cole este link no seu navegador:<br>{$resetLink}</p>
+                <p>Este link expira em 1 hora.</p>
+                <p>Se você não solicitou a redefinição de senha, ignore este email.</p>
+                <p>Atenciosamente,<br>Equipe Arbitrivm</p>
+            ";
+            
+            if (sendEmail($user['email'], 'Recuperação de Senha - Arbitrivm', $emailBody)) {
+                $message = 'Instruções para redefinir sua senha foram enviadas para seu email.';
+                $messageType = 'success';
+            } else {
+                $message = 'Erro ao enviar email. Tente novamente mais tarde.';
+                $messageType = 'error';
+            }
+        } else {
+            // Por segurança, mostrar a mesma mensagem mesmo se o email não existir
+            $message = 'Instruções para redefinir sua senha foram enviadas para seu email.';
+            $messageType = 'success';
+        }
     }
 }
-
-$csrfToken = generateCSRF();
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -42,10 +72,6 @@ $csrfToken = generateCSRF();
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Recuperar Senha - Arbitrivm</title>
-    
-    <!-- Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    
     <style>
         * {
             margin: 0;
@@ -53,45 +79,26 @@ $csrfToken = generateCSRF();
             box-sizing: border-box;
         }
 
-        :root {
-            --primary: #2563eb;
-            --primary-dark: #1d4ed8;
-            --secondary: #10b981;
-            --danger: #ef4444;
-            --dark: #1f2937;
-            --gray: #6b7280;
-            --light: #f3f4f6;
-            --white: #ffffff;
-            --border: #e5e7eb;
-            --shadow: 0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06);
-            --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
-            --radius: 0.5rem;
-            --transition: all 0.3s ease;
-        }
-
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            background-color: #f9fafb;
-            color: var(--dark);
-            line-height: 1.6;
-        }
-
-        .container {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .container {
+            width: 100%;
+            max-width: 400px;
             padding: 1rem;
         }
 
         .box {
-            background: var(--white);
+            background: white;
+            border-radius: 1rem;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
             padding: 2rem;
-            border-radius: var(--radius);
-            box-shadow: var(--shadow-lg);
-            width: 100%;
-            max-width: 400px;
         }
 
         .logo {
@@ -100,23 +107,29 @@ $csrfToken = generateCSRF();
         }
 
         .logo-icon {
-            width: 60px;
-            height: 60px;
+            width: 80px;
+            height: 80px;
             margin: 0 auto;
-            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
-            border-radius: 0.75rem;
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+            border-radius: 1rem;
             display: flex;
             align-items: center;
             justify-content: center;
             color: white;
-            font-size: 1.5rem;
+            font-size: 2rem;
             font-weight: bold;
         }
 
-        .logo h1 {
-            font-size: 1.5rem;
-            color: var(--primary);
-            margin-top: 0.75rem;
+        h1 {
+            margin-top: 1rem;
+            color: #1f2937;
+            font-size: 1.875rem;
+        }
+
+        .subtitle {
+            color: #6b7280;
+            margin-top: 0.5rem;
+            margin-bottom: 2rem;
         }
 
         .form-group {
@@ -125,125 +138,90 @@ $csrfToken = generateCSRF();
 
         .form-label {
             display: block;
-            margin-bottom: 0.5rem;
+            color: #374151;
             font-weight: 500;
-            color: var(--dark);
+            margin-bottom: 0.5rem;
             font-size: 0.875rem;
         }
 
         .form-control {
             width: 100%;
             padding: 0.75rem 1rem;
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            font-size: 0.875rem;
-            transition: var(--transition);
+            border: 1px solid #d1d5db;
+            border-radius: 0.5rem;
+            font-size: 1rem;
+            transition: all 0.2s;
         }
 
         .form-control:focus {
             outline: none;
-            border-color: var(--primary);
+            border-color: #2563eb;
             box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
         }
 
         .btn {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            padding: 0.75rem 1.5rem;
-            font-size: 0.875rem;
-            font-weight: 500;
-            border-radius: var(--radius);
-            border: none;
-            cursor: pointer;
-            transition: var(--transition);
-            text-decoration: none;
             width: 100%;
-        }
-
-        .btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
+            padding: 0.75rem;
+            border: none;
+            border-radius: 0.5rem;
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.2s;
         }
 
         .btn-primary {
-            background-color: var(--primary);
+            background: #2563eb;
             color: white;
-        }
-
-        .btn-primary:hover:not(:disabled) {
-            background-color: var(--primary-dark);
-        }
-
-        .error-message {
-            background-color: #fee2e2;
-            color: #991b1b;
-            padding: 0.75rem;
-            border-radius: var(--radius);
             margin-bottom: 1rem;
-            font-size: 0.875rem;
-            text-align: center;
         }
 
-        .success-message {
-            background-color: #d1fae5;
-            color: #065f46;
-            padding: 0.75rem;
-            border-radius: var(--radius);
-            margin-bottom: 1rem;
-            font-size: 0.875rem;
-            text-align: center;
+        .btn-primary:hover {
+            background: #1d4ed8;
         }
 
-        .info-message {
-            background-color: #dbeafe;
-            color: #1e40af;
-            padding: 0.75rem;
-            border-radius: var(--radius);
+        .btn-secondary {
+            background: #f3f4f6;
+            color: #374151;
+        }
+
+        .btn-secondary:hover {
+            background: #e5e7eb;
+        }
+
+        .alert {
+            padding: 0.75rem 1rem;
+            border-radius: 0.5rem;
             margin-bottom: 1rem;
             font-size: 0.875rem;
         }
 
-        .form-footer {
-            text-align: center;
-            margin-top: 1.5rem;
-        }
-
-        .form-footer a {
-            color: var(--primary);
-            text-decoration: none;
-            font-size: 0.875rem;
-        }
-
-        .form-footer a:hover {
-            text-decoration: underline;
-        }
-
-        .success-icon {
-            width: 48px;
-            height: 48px;
-            margin: 0 auto 1rem;
+        .alert-success {
             background: #d1fae5;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: var(--secondary);
+            color: #065f46;
+            border: 1px solid #a7f3d0;
         }
 
-        .spinner {
-            display: inline-block;
-            width: 16px;
-            height: 16px;
-            border: 2px solid var(--white);
-            border-radius: 50%;
-            border-top-color: transparent;
-            animation: spin 0.8s linear infinite;
-            margin-right: 0.5rem;
+        .alert-error {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fecaca;
         }
 
-        @keyframes spin {
-            to { transform: rotate(360deg); }
+        .help-text {
+            font-size: 0.875rem;
+            color: #6b7280;
+            margin-bottom: 1.5rem;
+            line-height: 1.5;
+        }
+
+        a {
+            color: #2563eb;
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
         }
     </style>
 </head>
@@ -252,31 +230,22 @@ $csrfToken = generateCSRF();
         <div class="box">
             <div class="logo">
                 <div class="logo-icon">A</div>
-                <h1>Recuperar Senha</h1>
+                <h1>Arbitrivm</h1>
+                <p class="subtitle">Recuperação de Senha</p>
             </div>
 
-            <?php if ($success): ?>
-                <div class="success-icon">
-                    <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                    </svg>
+            <?php if ($message): ?>
+                <div class="alert alert-<?php echo $messageType; ?>">
+                    <?php echo htmlspecialchars($message); ?>
                 </div>
-                <div class="success-message"><?php echo htmlspecialchars($message); ?></div>
-                <div class="form-footer">
-                    <a href="login.php">Voltar ao Login</a>
-                </div>
-            <?php else: ?>
-                <?php if ($error): ?>
-                    <div class="error-message"><?php echo htmlspecialchars($error); ?></div>
-                <?php endif; ?>
+            <?php endif; ?>
 
-                <div class="info-message">
+            <?php if ($messageType !== 'success'): ?>
+                <p class="help-text">
                     Digite seu email cadastrado e enviaremos instruções para redefinir sua senha.
-                </div>
+                </p>
 
-                <form method="POST" action="forgot-password.php" id="forgotForm">
-                    <input type="hidden" name="csrf_token" value="<?php echo $csrfToken; ?>">
-                    
+                <form method="POST">
                     <div class="form-group">
                         <label class="form-label" for="email">Email</label>
                         <input 
@@ -284,31 +253,30 @@ $csrfToken = generateCSRF();
                             class="form-control" 
                             id="email" 
                             name="email" 
-                            value="<?php echo htmlspecialchars($_POST['email'] ?? ''); ?>"
                             required 
                             autofocus
                             placeholder="seu@email.com"
                         >
                     </div>
 
-                    <button type="submit" class="btn btn-primary" id="submitBtn">
-                        Enviar Email de Recuperação
+                    <button type="submit" class="btn btn-primary">
+                        Enviar Instruções
                     </button>
 
-                    <div class="form-footer">
-                        <a href="login.php">Voltar ao Login</a>
-                    </div>
+                    <a href="login.php">
+                        <button type="button" class="btn btn-secondary">
+                            Voltar ao Login
+                        </button>
+                    </a>
                 </form>
+            <?php else: ?>
+                <a href="login.php">
+                    <button type="button" class="btn btn-primary">
+                        Voltar ao Login
+                    </button>
+                </a>
             <?php endif; ?>
         </div>
     </div>
-
-    <script>
-        document.getElementById('forgotForm')?.addEventListener('submit', function(e) {
-            const btn = document.getElementById('submitBtn');
-            btn.disabled = true;
-            btn.innerHTML = '<span class="spinner"></span>Enviando...';
-        });
-    </script>
 </body>
 </html>

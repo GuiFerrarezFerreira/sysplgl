@@ -1,37 +1,120 @@
 <?php
-/**
- * Arbitrivm - Página de Login
- */
-
+session_start();
 require_once 'config.php';
+require_once 'includes/database.php';
+require_once 'includes/auth.php';
+require_once 'includes/functions.php';
 
-// Se já estiver logado, redirecionar para dashboard
-if (isLoggedIn()) {
-    redirect('index.php');
-    exit;
-}
+$db = new Database();
+$error = '';
 
-// Processar login se for POST
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $email = $_POST['email'] ?? '';
-    $password = $_POST['password'] ?? '';
-    
-    if (validateCSRF($_POST['csrf_token'] ?? '')) {
-        $auth = new Auth();
-        $result = $auth->login($email, $password);
-        
-        if ($result['success']) {
-            redirect('index.php');
-            exit;
-        } else {
-            $error = $result['message'];
-        }
-    } else {
-        $error = 'Token de segurança inválido. Por favor, recarregue a página.';
+// Se já estiver logado, redirecionar
+if (isset($_SESSION['user_id'])) {
+    switch ($_SESSION['user_type']) {
+        case 'admin':
+            redirect('/admin/');
+            break;
+        case 'arbitrator':
+            redirect('/arbitrator/');
+            break;
+        case 'party':
+            redirect('/party/');
+            break;
     }
 }
 
-$csrfToken = generateCSRF();
+// Processar login
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $email = filter_var($_POST['email'] ?? '', FILTER_SANITIZE_EMAIL);
+    $password = $_POST['password'] ?? '';
+    $remember = isset($_POST['remember']);
+    
+    if (empty($email) || empty($password)) {
+        $error = 'Por favor, preencha todos os campos.';
+    } else {
+        $result = authenticateUser($email, $password);
+        
+        if ($result['success']) {
+            // Configurar cookie "lembrar-me" se solicitado
+            if ($remember) {
+                $token = bin2hex(random_bytes(32));
+                setcookie('remember_token', $token, time() + (30 * 24 * 60 * 60), '/', '', false, true);
+                
+                // Salvar token no banco
+                $db->insert('remember_tokens', [
+                    'user_id' => $_SESSION['user_id'],
+                    'token' => hash('sha256', $token),
+                    'expires_at' => date('Y-m-d H:i:s', strtotime('+30 days')),
+                    'created_at' => date('Y-m-d H:i:s')
+                ]);
+            }
+            
+            // Redirecionar para URL salva ou dashboard apropriado
+            $redirectUrl = $_SESSION['redirect_after_login'] ?? null;
+            unset($_SESSION['redirect_after_login']);
+            
+            if ($redirectUrl) {
+                redirect($redirectUrl);
+            } else {
+                switch ($result['user_type']) {
+                    case 'admin':
+                        redirect('/admin/');
+                        break;
+                    case 'arbitrator':
+                        redirect('/arbitrator/');
+                        break;
+                    case 'party':
+                        redirect('/party/');
+                        break;
+                }
+            }
+        } else {
+            $error = $result['message'];
+        }
+    }
+}
+
+// Verificar cookie "lembrar-me"
+if (!isset($_SESSION['user_id']) && isset($_COOKIE['remember_token'])) {
+    $token = $_COOKIE['remember_token'];
+    $hashedToken = hash('sha256', $token);
+    
+    $rememberData = $db->fetchOne("
+        SELECT rt.*, u.* 
+        FROM remember_tokens rt
+        INNER JOIN users u ON rt.user_id = u.id
+        WHERE rt.token = ? 
+        AND rt.expires_at > NOW()
+        AND u.is_active = 1
+    ", [$hashedToken]);
+    
+    if ($rememberData) {
+        createUserSession($rememberData);
+        
+        // Redirecionar baseado no tipo de usuário
+        switch ($rememberData['user_type']) {
+            case 'admin':
+                redirect('/admin/');
+                break;
+            case 'arbitrator':
+                redirect('/arbitrator/');
+                break;
+            case 'party':
+                redirect('/party/');
+                break;
+        }
+    }
+}
+
+// Mensagens de status
+$statusMessage = '';
+if (isset($_GET['registered'])) {
+    $statusMessage = '<div class="alert alert-success">Cadastro realizado com sucesso! Faça login para continuar.</div>';
+} elseif (isset($_GET['expired'])) {
+    $statusMessage = '<div class="alert alert-warning">Sua sessão expirou. Por favor, faça login novamente.</div>';
+} elseif (isset($_GET['logout'])) {
+    $statusMessage = '<div class="alert alert-info">Você saiu do sistema com sucesso.</div>';
+}
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -39,56 +122,34 @@ $csrfToken = generateCSRF();
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - Arbitrivm</title>
-    
-    <!-- Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    
     <style>
+        /* Estilos do login.php existente com melhorias */
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
 
-        :root {
-            --primary: #2563eb;
-            --primary-dark: #1d4ed8;
-            --secondary: #10b981;
-            --danger: #ef4444;
-            --dark: #1f2937;
-            --gray: #6b7280;
-            --light: #f3f4f6;
-            --white: #ffffff;
-            --border: #e5e7eb;
-            --shadow: 0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06);
-            --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
-            --radius: 0.5rem;
-            --transition: all 0.3s ease;
-        }
-
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            background-color: #f9fafb;
-            color: var(--dark);
-            line-height: 1.6;
-        }
-
-        .login-container {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .login-container {
+            width: 100%;
+            max-width: 400px;
             padding: 1rem;
         }
 
         .login-box {
-            background: var(--white);
+            background: white;
+            border-radius: 1rem;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
             padding: 2rem;
-            border-radius: var(--radius);
-            box-shadow: var(--shadow-lg);
-            width: 100%;
-            max-width: 400px;
         }
 
         .login-logo {
@@ -100,7 +161,7 @@ $csrfToken = generateCSRF();
             width: 80px;
             height: 80px;
             margin: 0 auto;
-            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
             border-radius: 1rem;
             display: flex;
             align-items: center;
@@ -111,14 +172,13 @@ $csrfToken = generateCSRF();
         }
 
         .login-logo h1 {
-            font-size: 2rem;
-            color: var(--primary);
             margin-top: 1rem;
+            color: #1f2937;
+            font-size: 1.875rem;
         }
 
         .login-logo p {
-            color: var(--gray);
-            font-size: 0.875rem;
+            color: #6b7280;
             margin-top: 0.5rem;
         }
 
@@ -128,109 +188,129 @@ $csrfToken = generateCSRF();
 
         .form-label {
             display: block;
-            margin-bottom: 0.5rem;
+            color: #374151;
             font-weight: 500;
-            color: var(--dark);
+            margin-bottom: 0.5rem;
             font-size: 0.875rem;
         }
 
         .form-control {
             width: 100%;
             padding: 0.75rem 1rem;
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            font-size: 0.875rem;
-            transition: var(--transition);
+            border: 1px solid #d1d5db;
+            border-radius: 0.5rem;
+            font-size: 1rem;
+            transition: all 0.2s;
         }
 
         .form-control:focus {
             outline: none;
-            border-color: var(--primary);
+            border-color: #2563eb;
             box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
         }
 
-        .form-checkbox {
+        .password-wrapper {
+            position: relative;
+        }
+
+        .toggle-password {
+            position: absolute;
+            right: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: #6b7280;
+            cursor: pointer;
+        }
+
+        .remember-forgot {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .remember-me {
             display: flex;
             align-items: center;
             gap: 0.5rem;
-            cursor: pointer;
         }
 
-        .form-checkbox input {
-            cursor: pointer;
+        .remember-me input {
+            width: 1rem;
+            height: 1rem;
         }
 
-        .form-checkbox span {
-            font-size: 0.875rem;
-        }
-
-        .btn {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            padding: 0.75rem 1.5rem;
-            font-size: 0.875rem;
-            font-weight: 500;
-            border-radius: var(--radius);
-            border: none;
-            cursor: pointer;
-            transition: var(--transition);
-            text-decoration: none;
-            width: 100%;
-        }
-
-        .btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-
-        .btn-primary {
-            background-color: var(--primary);
-            color: white;
-        }
-
-        .btn-primary:hover:not(:disabled) {
-            background-color: var(--primary-dark);
-        }
-
-        .error-message {
-            background-color: #fee2e2;
-            color: #991b1b;
-            padding: 0.75rem;
-            border-radius: var(--radius);
-            margin-bottom: 1rem;
-            font-size: 0.875rem;
-            text-align: center;
-        }
-
-        .success-message {
-            background-color: #d1fae5;
-            color: #065f46;
-            padding: 0.75rem;
-            border-radius: var(--radius);
-            margin-bottom: 1rem;
-            font-size: 0.875rem;
-            text-align: center;
-        }
-
-        .form-footer {
-            text-align: center;
-            margin-top: 2rem;
-        }
-
-        .form-footer a {
-            color: var(--primary);
+        .forgot-link {
+            color: #2563eb;
             text-decoration: none;
             font-size: 0.875rem;
         }
 
-        .form-footer a:hover {
+        .forgot-link:hover {
             text-decoration: underline;
         }
 
+        .btn {
+            width: 100%;
+            padding: 0.75rem;
+            border: none;
+            border-radius: 0.5rem;
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: #2563eb;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #1d4ed8;
+        }
+
+        .btn-primary:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+        }
+
+        .alert {
+            padding: 0.75rem 1rem;
+            border-radius: 0.5rem;
+            margin-bottom: 1rem;
+            font-size: 0.875rem;
+        }
+
+        .alert-success {
+            background: #d1fae5;
+            color: #065f46;
+            border: 1px solid #a7f3d0;
+        }
+
+        .alert-warning {
+            background: #fef3c7;
+            color: #92400e;
+            border: 1px solid #fde68a;
+        }
+
+        .alert-info {
+            background: #dbeafe;
+            color: #1e40af;
+            border: 1px solid #bfdbfe;
+        }
+
+        .alert-danger {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fecaca;
+        }
+
         .divider {
-            margin: 1.5rem 0;
             text-align: center;
+            margin: 1.5rem 0;
             position: relative;
         }
 
@@ -241,59 +321,45 @@ $csrfToken = generateCSRF();
             left: 0;
             right: 0;
             height: 1px;
-            background: var(--border);
+            background: #e5e7eb;
         }
 
         .divider span {
-            background: var(--white);
+            background: white;
             padding: 0 1rem;
             position: relative;
-            color: var(--gray);
+            color: #6b7280;
             font-size: 0.875rem;
         }
 
-        .demo-info {
-            background-color: #f0f9ff;
-            border: 1px solid #3b82f6;
-            padding: 1rem;
-            border-radius: var(--radius);
-            margin-bottom: 1.5rem;
-            font-size: 0.875rem;
+        .register-link {
+            text-align: center;
+            margin-top: 1.5rem;
         }
 
-        .demo-info strong {
-            display: block;
-            margin-bottom: 0.5rem;
-            color: var(--primary);
+        .register-link a {
+            color: #2563eb;
+            text-decoration: none;
+            font-weight: 500;
         }
 
-        .demo-credentials {
-            background-color: var(--white);
-            padding: 0.5rem;
-            border-radius: 0.25rem;
-            margin-top: 0.5rem;
-            font-family: monospace;
+        .register-link a:hover {
+            text-decoration: underline;
         }
 
-        .spinner {
+        .loading {
             display: inline-block;
-            width: 16px;
-            height: 16px;
-            border: 2px solid var(--white);
+            width: 1rem;
+            height: 1rem;
+            border: 2px solid #f3f4f6;
             border-radius: 50%;
-            border-top-color: transparent;
+            border-top-color: #2563eb;
             animation: spin 0.8s linear infinite;
             margin-right: 0.5rem;
         }
 
         @keyframes spin {
             to { transform: rotate(360deg); }
-        }
-
-        @media (max-width: 640px) {
-            .login-box {
-                padding: 1.5rem;
-            }
         }
     </style>
 </head>
@@ -306,32 +372,13 @@ $csrfToken = generateCSRF();
                 <p>Sistema de Arbitragem Imobiliária</p>
             </div>
 
-            <!-- Demo Info (remover em produção) -->
-            <?php if (ENVIRONMENT === 'development'): ?>
-            <div class="demo-info">
-                <strong>🔒 Credenciais de Demonstração:</strong>
-                <div class="demo-credentials">
-                    Email: teste@teste.com<br>
-                    Senha: teste
-                </div>
-            </div>
+            <?php echo $statusMessage; ?>
+
+            <?php if ($error): ?>
+                <div class="alert alert-danger"><?php echo htmlspecialchars($error); ?></div>
             <?php endif; ?>
 
-            <?php if (isset($error)): ?>
-                <div class="error-message"><?php echo htmlspecialchars($error); ?></div>
-            <?php endif; ?>
-
-            <?php if (isset($_GET['registered'])): ?>
-                <div class="success-message">Cadastro realizado com sucesso! Faça login para continuar.</div>
-            <?php endif; ?>
-
-            <?php if (isset($_GET['logout'])): ?>
-                <div class="success-message">Logout realizado com sucesso.</div>
-            <?php endif; ?>
-
-            <form method="POST" action="login.php" id="loginForm">
-                <input type="hidden" name="csrf_token" value="<?php echo $csrfToken; ?>">
-                
+            <form method="POST" id="loginForm">
                 <div class="form-group">
                     <label class="form-label" for="email">Email</label>
                     <input 
@@ -347,63 +394,61 @@ $csrfToken = generateCSRF();
 
                 <div class="form-group">
                     <label class="form-label" for="password">Senha</label>
-                    <input 
-                        type="password" 
-                        class="form-control" 
-                        id="password" 
-                        name="password" 
-                        required
-                    >
+                    <div class="password-wrapper">
+                        <input 
+                            type="password" 
+                            class="form-control" 
+                            id="password" 
+                            name="password" 
+                            required
+                        >
+                        <button type="button" class="toggle-password" onclick="togglePassword()">
+                            <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                                <path d="M10 12a2 2 0 100-4 2 2 0 000 4z"/>
+                                <path fill-rule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z"/>
+                            </svg>
+                        </button>
+                    </div>
                 </div>
 
-                <div class="form-group">
-                    <label class="form-checkbox">
-                        <input type="checkbox" name="remember_me" value="1">
+                <div class="remember-forgot">
+                    <label class="remember-me">
+                        <input type="checkbox" name="remember" id="remember">
                         <span>Lembrar de mim</span>
                     </label>
+                    <a href="forgot-password.php" class="forgot-link">Esqueceu a senha?</a>
                 </div>
 
-                <button type="submit" class="btn btn-primary" id="loginBtn">
+                <button type="submit" class="btn btn-primary" id="submitBtn">
                     Entrar
                 </button>
-
-                <div class="form-footer">
-                    <a href="forgot-password.php">Esqueceu sua senha?</a>
-                </div>
-
-                <div class="divider">
-                    <span>ou</span>
-                </div>
-
-                <div class="form-footer">
-                    <span style="color: var(--gray);">Não tem conta?</span>
-                    <a href="register.php">Registre-se</a>
-                </div>
             </form>
+
+            <div class="divider">
+                <span>ou</span>
+            </div>
+
+            <div class="register-link">
+                <p>Não tem uma conta?</p>
+                <a href="register.php">Cadastre-se como Parte</a> | 
+                <a href="register-arbitrator.php">Seja um Árbitro</a>
+            </div>
         </div>
     </div>
 
     <script>
-        // Handle form submission
-        document.getElementById('loginForm').addEventListener('submit', function(e) {
-            const btn = document.getElementById('loginBtn');
-            btn.disabled = true;
-            btn.innerHTML = '<span class="spinner"></span>Entrando...';
-        });
+        function togglePassword() {
+            const passwordInput = document.getElementById('password');
+            const type = passwordInput.type === 'password' ? 'text' : 'password';
+            passwordInput.type = type;
+        }
 
-        // Auto-fill demo credentials for development
-        <?php if (ENVIRONMENT === 'development'): ?>
-        document.addEventListener('DOMContentLoaded', function() {
-            const demoInfo = document.querySelector('.demo-info');
-            if (demoInfo) {
-                demoInfo.style.cursor = 'pointer';
-                demoInfo.addEventListener('click', function() {
-                    document.getElementById('email').value = 'teste@teste.com';
-                    document.getElementById('password').value = 'teste';
-                });
-            }
+        // Adicionar indicador de carregamento ao enviar
+        document.getElementById('loginForm').addEventListener('submit', function(e) {
+            const btn = document.getElementById('submitBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="loading"></span>Entrando...';
         });
-        <?php endif; ?>
     </script>
 </body>
 </html>

@@ -1,51 +1,98 @@
 <?php
 /**
- * Arbitrivm - Redefinir Senha
+ * reset-password.php - Redefinir Senha
  */
 
+session_start();
 require_once 'config.php';
+require_once 'includes/database.php';
+require_once 'includes/auth.php';
+require_once 'includes/functions.php';
 
-// Se já estiver logado, redirecionar
-if (isLoggedIn()) {
-    redirect('index.php');
-    exit;
-}
-
+$db = new Database();
+$message = '';
+$messageType = '';
+$validToken = false;
 $token = $_GET['token'] ?? '';
-$error = '';
-$success = false;
 
-// Verificar se token existe
-if (!$token) {
-    $_SESSION['error'] = 'Token de redefinição inválido.';
-    redirect('forgot-password.php');
-    exit;
-}
-
-// Processar nova senha
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $newPassword = $_POST['password'] ?? '';
-    $confirmPassword = $_POST['password_confirm'] ?? '';
+// Validar token
+if ($token) {
+    $reset = $db->fetchOne("
+        SELECT pr.*, u.email 
+        FROM password_resets pr
+        INNER JOIN users u ON pr.user_id = u.id
+        WHERE pr.token = ? 
+        AND pr.expires_at > NOW() 
+        AND pr.used = 0
+    ", [$token]);
     
-    if (validateCSRF($_POST['csrf_token'] ?? '')) {
-        if ($newPassword !== $confirmPassword) {
-            $error = 'As senhas não coincidem.';
-        } else {
-            $auth = new Auth();
-            $result = $auth->resetPassword($token, $newPassword);
-            
-            if ($result['success']) {
-                $success = true;
-            } else {
-                $error = $result['message'];
-            }
-        }
+    if ($reset) {
+        $validToken = true;
     } else {
-        $error = 'Token de segurança inválido. Por favor, recarregue a página.';
+        $message = 'Link inválido ou expirado. Solicite um novo link de recuperação.';
+        $messageType = 'error';
     }
 }
 
-$csrfToken = generateCSRF();
+// Processar nova senha
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $validToken) {
+    $password = $_POST['password'] ?? '';
+    $confirmPassword = $_POST['confirm_password'] ?? '';
+    
+    if (empty($password) || empty($confirmPassword)) {
+        $message = 'Por favor, preencha todos os campos.';
+        $messageType = 'error';
+    } elseif ($password !== $confirmPassword) {
+        $message = 'As senhas não coincidem.';
+        $messageType = 'error';
+    } elseif (!isStrongPassword($password)) {
+        $message = 'A senha deve ter pelo menos 8 caracteres e conter letras maiúsculas, minúsculas e números.';
+        $messageType = 'error';
+    } else {
+        try {
+            $db->beginTransaction();
+            
+            // Atualizar senha
+            $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
+            $db->update('users', 
+                ['password' => $hashedPassword],
+                'id = ?',
+                [$reset['user_id']]
+            );
+            
+            // Marcar token como usado
+            $db->update('password_resets',
+                ['used' => 1, 'used_at' => date('Y-m-d H:i:s')],
+                'id = ?',
+                [$reset['id']]
+            );
+            
+            // Registrar no log de segurança
+            $db->insert('security_logs', [
+                'user_id' => $reset['user_id'],
+                'event_type' => 'password_reset',
+                'event_description' => 'Senha redefinida via link de recuperação',
+                'ip_address' => $_SERVER['REMOTE_ADDR'] ?? null,
+                'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? null
+            ]);
+            
+            // Invalidar outras sessões do usuário
+            $db->delete('user_sessions', 'user_id = ?', [$reset['user_id']]);
+            
+            $db->commit();
+            
+            $message = 'Senha redefinida com sucesso! Você já pode fazer login.';
+            $messageType = 'success';
+            $validToken = false; // Prevenir reutilização
+            
+        } catch (Exception $e) {
+            $db->rollback();
+            $message = 'Erro ao redefinir senha. Tente novamente.';
+            $messageType = 'error';
+            logError('Erro ao redefinir senha: ' . $e->getMessage());
+        }
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -53,10 +100,6 @@ $csrfToken = generateCSRF();
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Redefinir Senha - Arbitrivm</title>
-    
-    <!-- Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    
     <style>
         * {
             margin: 0;
@@ -64,46 +107,26 @@ $csrfToken = generateCSRF();
             box-sizing: border-box;
         }
 
-        :root {
-            --primary: #2563eb;
-            --primary-dark: #1d4ed8;
-            --secondary: #10b981;
-            --danger: #ef4444;
-            --warning: #f59e0b;
-            --dark: #1f2937;
-            --gray: #6b7280;
-            --light: #f3f4f6;
-            --white: #ffffff;
-            --border: #e5e7eb;
-            --shadow: 0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06);
-            --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
-            --radius: 0.5rem;
-            --transition: all 0.3s ease;
-        }
-
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            background-color: #f9fafb;
-            color: var(--dark);
-            line-height: 1.6;
-        }
-
-        .container {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .container {
+            width: 100%;
+            max-width: 400px;
             padding: 1rem;
         }
 
         .box {
-            background: var(--white);
+            background: white;
+            border-radius: 1rem;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
             padding: 2rem;
-            border-radius: var(--radius);
-            box-shadow: var(--shadow-lg);
-            width: 100%;
-            max-width: 400px;
         }
 
         .logo {
@@ -112,23 +135,29 @@ $csrfToken = generateCSRF();
         }
 
         .logo-icon {
-            width: 60px;
-            height: 60px;
+            width: 80px;
+            height: 80px;
             margin: 0 auto;
-            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
-            border-radius: 0.75rem;
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+            border-radius: 1rem;
             display: flex;
             align-items: center;
             justify-content: center;
             color: white;
-            font-size: 1.5rem;
+            font-size: 2rem;
             font-weight: bold;
         }
 
-        .logo h1 {
-            font-size: 1.5rem;
-            color: var(--primary);
-            margin-top: 0.75rem;
+        h1 {
+            margin-top: 1rem;
+            color: #1f2937;
+            font-size: 1.875rem;
+        }
+
+        .subtitle {
+            color: #6b7280;
+            margin-top: 0.5rem;
+            margin-bottom: 2rem;
         }
 
         .form-group {
@@ -137,89 +166,40 @@ $csrfToken = generateCSRF();
 
         .form-label {
             display: block;
-            margin-bottom: 0.5rem;
+            color: #374151;
             font-weight: 500;
-            color: var(--dark);
+            margin-bottom: 0.5rem;
             font-size: 0.875rem;
         }
 
         .form-control {
             width: 100%;
             padding: 0.75rem 1rem;
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            font-size: 0.875rem;
-            transition: var(--transition);
+            border: 1px solid #d1d5db;
+            border-radius: 0.5rem;
+            font-size: 1rem;
+            transition: all 0.2s;
         }
 
         .form-control:focus {
             outline: none;
-            border-color: var(--primary);
+            border-color: #2563eb;
             box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
         }
 
-        .btn {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            padding: 0.75rem 1.5rem;
-            font-size: 0.875rem;
-            font-weight: 500;
-            border-radius: var(--radius);
+        .password-wrapper {
+            position: relative;
+        }
+
+        .toggle-password {
+            position: absolute;
+            right: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
             border: none;
+            color: #6b7280;
             cursor: pointer;
-            transition: var(--transition);
-            text-decoration: none;
-            width: 100%;
-        }
-
-        .btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-
-        .btn-primary {
-            background-color: var(--primary);
-            color: white;
-        }
-
-        .btn-primary:hover:not(:disabled) {
-            background-color: var(--primary-dark);
-        }
-
-        .error-message {
-            background-color: #fee2e2;
-            color: #991b1b;
-            padding: 0.75rem;
-            border-radius: var(--radius);
-            margin-bottom: 1rem;
-            font-size: 0.875rem;
-            text-align: center;
-        }
-
-        .success-message {
-            background-color: #d1fae5;
-            color: #065f46;
-            padding: 1rem;
-            border-radius: var(--radius);
-            margin-bottom: 1rem;
-            font-size: 0.875rem;
-            text-align: center;
-        }
-
-        .form-footer {
-            text-align: center;
-            margin-top: 1.5rem;
-        }
-
-        .form-footer a {
-            color: var(--primary);
-            text-decoration: none;
-            font-size: 0.875rem;
-        }
-
-        .form-footer a:hover {
-            text-decoration: underline;
         }
 
         .password-strength {
@@ -227,29 +207,85 @@ $csrfToken = generateCSRF();
             font-size: 0.75rem;
         }
 
-        .password-strength-bar {
-            height: 4px;
-            background-color: var(--light);
-            border-radius: 2px;
-            margin-bottom: 0.25rem;
-            overflow: hidden;
+        .strength-weak {
+            color: #ef4444;
         }
 
-        .password-strength-fill {
-            height: 100%;
-            transition: width 0.3s ease;
+        .strength-medium {
+            color: #f59e0b;
         }
 
-        .strength-weak { background-color: var(--danger); width: 33%; }
-        .strength-medium { background-color: var(--warning); width: 66%; }
-        .strength-strong { background-color: var(--secondary); width: 100%; }
+        .strength-strong {
+            color: #10b981;
+        }
 
-        .password-requirements {
-            background-color: var(--light);
+        .btn {
+            width: 100%;
             padding: 0.75rem;
-            border-radius: var(--radius);
+            border: none;
+            border-radius: 0.5rem;
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: #2563eb;
+            color: white;
             margin-bottom: 1rem;
-            font-size: 0.75rem;
+        }
+
+        .btn-primary:hover {
+            background: #1d4ed8;
+        }
+
+        .btn-primary:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background: #f3f4f6;
+            color: #374151;
+        }
+
+        .btn-secondary:hover {
+            background: #e5e7eb;
+        }
+
+        .alert {
+            padding: 0.75rem 1rem;
+            border-radius: 0.5rem;
+            margin-bottom: 1rem;
+            font-size: 0.875rem;
+        }
+
+        .alert-success {
+            background: #d1fae5;
+            color: #065f46;
+            border: 1px solid #a7f3d0;
+        }
+
+        .alert-error {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fecaca;
+        }
+
+        .requirements {
+            background: #f9fafb;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin-bottom: 1.5rem;
+            font-size: 0.875rem;
+        }
+
+        .requirements h3 {
+            font-size: 0.875rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: #374151;
         }
 
         .requirement {
@@ -257,47 +293,25 @@ $csrfToken = generateCSRF();
             align-items: center;
             gap: 0.5rem;
             margin-bottom: 0.25rem;
+            color: #6b7280;
         }
 
-        .requirement:last-child {
-            margin-bottom: 0;
+        .requirement.met {
+            color: #10b981;
         }
 
         .requirement-icon {
             width: 16px;
             height: 16px;
-            color: var(--gray);
         }
 
-        .requirement.met .requirement-icon {
-            color: var(--secondary);
+        a {
+            color: #2563eb;
+            text-decoration: none;
         }
 
-        .success-icon {
-            width: 48px;
-            height: 48px;
-            margin: 0 auto 1rem;
-            background: #d1fae5;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: var(--secondary);
-        }
-
-        .spinner {
-            display: inline-block;
-            width: 16px;
-            height: 16px;
-            border: 2px solid var(--white);
-            border-radius: 50%;
-            border-top-color: transparent;
-            animation: spin 0.8s linear infinite;
-            margin-right: 0.5rem;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
+        a:hover {
+            text-decoration: underline;
         }
     </style>
 </head>
@@ -306,165 +320,187 @@ $csrfToken = generateCSRF();
         <div class="box">
             <div class="logo">
                 <div class="logo-icon">A</div>
-                <h1>Nova Senha</h1>
+                <h1>Arbitrivm</h1>
+                <p class="subtitle">Criar Nova Senha</p>
             </div>
 
-            <?php if ($success): ?>
-                <div class="success-icon">
-                    <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                    </svg>
+            <?php if ($message): ?>
+                <div class="alert alert-<?php echo $messageType; ?>">
+                    <?php echo htmlspecialchars($message); ?>
                 </div>
-                <div class="success-message">
-                    Senha redefinida com sucesso!<br>
-                    Você já pode fazer login com sua nova senha.
-                </div>
-                <a href="login.php" class="btn btn-primary">Ir para Login</a>
-            <?php else: ?>
-                <?php if ($error): ?>
-                    <div class="error-message"><?php echo htmlspecialchars($error); ?></div>
-                <?php endif; ?>
+            <?php endif; ?>
 
-                <form method="POST" action="reset-password.php?token=<?php echo urlencode($token); ?>" id="resetForm">
-                    <input type="hidden" name="csrf_token" value="<?php echo $csrfToken; ?>">
-                    <input type="hidden" name="token" value="<?php echo htmlspecialchars($token); ?>">
-                    
-                    <div class="form-group">
-                        <label class="form-label" for="password">Nova Senha</label>
-                        <input 
-                            type="password" 
-                            class="form-control" 
-                            id="password" 
-                            name="password" 
-                            required
-                            minlength="<?php echo PASSWORD_MIN_LENGTH; ?>"
-                            autofocus
-                        >
-                        <div class="password-strength">
-                            <div class="password-strength-bar">
-                                <div id="passwordStrengthFill" class="password-strength-fill"></div>
-                            </div>
-                            <span id="passwordStrengthText">Digite sua senha</span>
-                        </div>
-                    </div>
-
-                    <div class="form-group">
-                        <label class="form-label" for="password_confirm">Confirmar Nova Senha</label>
-                        <input 
-                            type="password" 
-                            class="form-control" 
-                            id="password_confirm" 
-                            name="password_confirm" 
-                            required
-                        >
-                    </div>
-
-                    <div class="password-requirements">
+            <?php if ($validToken): ?>
+                <form method="POST" id="resetForm">
+                    <div class="requirements">
+                        <h3>Requisitos da senha:</h3>
                         <div class="requirement" id="req-length">
-                            <svg class="requirement-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                            </svg>
-                            Mínimo de <?php echo PASSWORD_MIN_LENGTH; ?> caracteres
+                            <span class="requirement-icon">○</span>
+                            Mínimo 8 caracteres
                         </div>
                         <div class="requirement" id="req-uppercase">
-                            <svg class="requirement-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                            </svg>
+                            <span class="requirement-icon">○</span>
                             Uma letra maiúscula
                         </div>
                         <div class="requirement" id="req-lowercase">
-                            <svg class="requirement-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                            </svg>
+                            <span class="requirement-icon">○</span>
                             Uma letra minúscula
                         </div>
                         <div class="requirement" id="req-number">
-                            <svg class="requirement-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                            </svg>
+                            <span class="requirement-icon">○</span>
                             Um número
                         </div>
                     </div>
 
-                    <button type="submit" class="btn btn-primary" id="submitBtn">
+                    <div class="form-group">
+                        <label class="form-label" for="password">Nova Senha</label>
+                        <div class="password-wrapper">
+                            <input 
+                                type="password" 
+                                class="form-control" 
+                                id="password" 
+                                name="password" 
+                                required
+                                onkeyup="checkPasswordStrength()"
+                            >
+                            <button type="button" class="toggle-password" onclick="togglePassword('password')">
+                                <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                                    <path d="M10 12a2 2 0 100-4 2 2 0 000 4z"/>
+                                    <path fill-rule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="password-strength" id="passwordStrength"></div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="confirm_password">Confirmar Nova Senha</label>
+                        <div class="password-wrapper">
+                            <input 
+                                type="password" 
+                                class="form-control" 
+                                id="confirm_password" 
+                                name="confirm_password" 
+                                required
+                                onkeyup="checkPasswordMatch()"
+                            >
+                            <button type="button" class="toggle-password" onclick="togglePassword('confirm_password')">
+                                <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                                    <path d="M10 12a2 2 0 100-4 2 2 0 000 4z"/>
+                                    <path fill-rule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="password-strength" id="passwordMatch"></div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary" id="submitBtn" disabled>
                         Redefinir Senha
                     </button>
 
-                    <div class="form-footer">
-                        <a href="login.php">Voltar ao Login</a>
-                    </div>
+                    <a href="login.php">
+                        <button type="button" class="btn btn-secondary">
+                            Cancelar
+                        </button>
+                    </a>
                 </form>
+            <?php else: ?>
+                <a href="forgot-password.php">
+                    <button type="button" class="btn btn-primary">
+                        Solicitar Novo Link
+                    </button>
+                </a>
+                <a href="login.php">
+                    <button type="button" class="btn btn-secondary">
+                        Voltar ao Login
+                    </button>
+                </a>
             <?php endif; ?>
         </div>
     </div>
 
     <script>
-        // Validação de força da senha
-        document.getElementById('password')?.addEventListener('input', function(e) {
-            const password = e.target.value;
-            const strengthFill = document.getElementById('passwordStrengthFill');
-            const strengthText = document.getElementById('passwordStrengthText');
+        function togglePassword(fieldId) {
+            const field = document.getElementById(fieldId);
+            field.type = field.type === 'password' ? 'text' : 'password';
+        }
+
+        function checkPasswordStrength() {
+            const password = document.getElementById('password').value;
+            const strengthDiv = document.getElementById('passwordStrength');
+            const submitBtn = document.getElementById('submitBtn');
             
             // Verificar requisitos
             const requirements = {
-                'req-length': password.length >= <?php echo PASSWORD_MIN_LENGTH; ?>,
-                'req-uppercase': /[A-Z]/.test(password),
-                'req-lowercase': /[a-z]/.test(password),
-                'req-number': /[0-9]/.test(password)
+                length: password.length >= 8,
+                uppercase: /[A-Z]/.test(password),
+                lowercase: /[a-z]/.test(password),
+                number: /[0-9]/.test(password)
             };
             
-            // Atualizar indicadores de requisitos
-            let metCount = 0;
-            for (const [id, met] of Object.entries(requirements)) {
-                const element = document.getElementById(id);
-                if (met) {
+            // Atualizar indicadores
+            Object.keys(requirements).forEach(req => {
+                const element = document.getElementById(`req-${req}`);
+                if (requirements[req]) {
                     element.classList.add('met');
-                    metCount++;
+                    element.querySelector('.requirement-icon').textContent = '✓';
                 } else {
                     element.classList.remove('met');
+                    element.querySelector('.requirement-icon').textContent = '○';
                 }
-            }
+            });
             
             // Calcular força
-            let strength = 0;
-            if (password.length >= <?php echo PASSWORD_MIN_LENGTH; ?>) strength++;
-            if (password.length >= 12) strength++;
-            if (/[a-z]/.test(password) && /[A-Z]/.test(password)) strength++;
-            if (/[0-9]/.test(password)) strength++;
-            if (/[^a-zA-Z0-9]/.test(password)) strength++;
+            const metRequirements = Object.values(requirements).filter(v => v).length;
             
-            strengthFill.className = 'password-strength-fill';
-            
-            if (strength <= 2) {
-                strengthFill.classList.add('strength-weak');
-                strengthText.textContent = 'Senha fraca';
-                strengthText.style.color = 'var(--danger)';
-            } else if (strength <= 3) {
-                strengthFill.classList.add('strength-medium');
-                strengthText.textContent = 'Senha média';
-                strengthText.style.color = 'var(--warning)';
+            if (password.length === 0) {
+                strengthDiv.textContent = '';
+            } else if (metRequirements < 2) {
+                strengthDiv.textContent = 'Senha fraca';
+                strengthDiv.className = 'password-strength strength-weak';
+            } else if (metRequirements < 4) {
+                strengthDiv.textContent = 'Senha média';
+                strengthDiv.className = 'password-strength strength-medium';
             } else {
-                strengthFill.classList.add('strength-strong');
-                strengthText.textContent = 'Senha forte';
-                strengthText.style.color = 'var(--secondary)';
+                strengthDiv.textContent = 'Senha forte';
+                strengthDiv.className = 'password-strength strength-strong';
             }
-        });
+            
+            // Verificar se pode habilitar botão
+            checkFormValidity();
+        }
 
-        // Validar confirmação de senha
-        document.getElementById('resetForm')?.addEventListener('submit', function(e) {
+        function checkPasswordMatch() {
             const password = document.getElementById('password').value;
-            const confirmPassword = document.getElementById('password_confirm').value;
+            const confirmPassword = document.getElementById('confirm_password').value;
+            const matchDiv = document.getElementById('passwordMatch');
             
-            if (password !== confirmPassword) {
-                e.preventDefault();
-                alert('As senhas não coincidem!');
-                return;
+            if (confirmPassword.length === 0) {
+                matchDiv.textContent = '';
+            } else if (password === confirmPassword) {
+                matchDiv.textContent = 'Senhas coincidem';
+                matchDiv.className = 'password-strength strength-strong';
+            } else {
+                matchDiv.textContent = 'Senhas não coincidem';
+                matchDiv.className = 'password-strength strength-weak';
             }
             
-            const btn = document.getElementById('submitBtn');
-            btn.disabled = true;
-            btn.innerHTML = '<span class="spinner"></span>Redefinindo...';
-        });
+            checkFormValidity();
+        }
+
+        function checkFormValidity() {
+            const password = document.getElementById('password').value;
+            const confirmPassword = document.getElementById('confirm_password').value;
+            const submitBtn = document.getElementById('submitBtn');
+            
+            const isValid = password.length >= 8 && 
+                           /[A-Z]/.test(password) && 
+                           /[a-z]/.test(password) && 
+                           /[0-9]/.test(password) && 
+                           password === confirmPassword;
+            
+            submitBtn.disabled = !isValid;
+        }
     </script>
 </body>
 </html>
